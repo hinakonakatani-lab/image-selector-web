@@ -20,6 +20,7 @@ type Props = {
   folders: DriveFolder[];
   folderId: string;
   initialColors: Record<string, string>;
+  initialMonths: Record<string, string>;
 };
 
 type Popup = {
@@ -28,11 +29,14 @@ type Popup = {
   y: number;
 } | null;
 
-export default function ImageGrid({ folders, folderId, initialColors }: Props) {
+export default function ImageGrid({ folders, folderId, initialColors, initialMonths }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
+  const [months, setMonths] = useState<Record<string, string>>(initialMonths);
   const [popup, setPopup] = useState<Popup>(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [editingMonth, setEditingMonth] = useState<string | null>(null);
+  const [monthInput, setMonthInput] = useState("");
 
   const handleImageClick = useCallback(
     (image: DriveImage, e: React.MouseEvent) => {
@@ -73,6 +77,28 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
       setSaving(false);
     },
     [popup, folderId]
+  );
+
+  const handleMonthSave = useCallback(
+    async (color: string) => {
+      const month = monthInput.trim();
+      setMonths((prev) => {
+        const next = { ...prev };
+        if (!month) {
+          delete next[color];
+        } else {
+          next[color] = month;
+        }
+        return next;
+      });
+      setEditingMonth(null);
+      await fetch("/api/months", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId, color, month: month || null }),
+      });
+    },
+    [monthInput, folderId]
   );
 
   // 全画像をパス付きでフラット化
@@ -206,7 +232,13 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab.emoji} {tab.label}（{colorCounts[tab.value]}）
+            {tab.emoji} {tab.label}
+            {months[tab.value] && (
+              <span className="ml-1 text-xs font-normal text-orange-500">
+                {months[tab.value]}
+              </span>
+            )}
+            （{colorCounts[tab.value]}）
           </button>
         ))}
       </div>
@@ -235,6 +267,51 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
       {/* 色別タブ */}
       {activeTab !== "all" && (
         <>
+          {/* 月設定 */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm text-gray-500">使用月：</span>
+            {editingMonth === activeTab ? (
+              <>
+                <input
+                  type="text"
+                  value={monthInput}
+                  onChange={(e) => setMonthInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleMonthSave(activeTab);
+                    if (e.key === "Escape") setEditingMonth(null);
+                  }}
+                  placeholder="例：4月、2024年5月"
+                  className="border rounded px-2 py-1 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleMonthSave(activeTab); }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded"
+                >
+                  保存
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditingMonth(null); }}
+                  className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1"
+                >
+                  キャンセル
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingMonth(activeTab);
+                  setMonthInput(months[activeTab] || "");
+                }}
+                className="text-sm px-3 py-1 rounded border border-dashed border-gray-300 hover:border-gray-400 text-gray-600"
+              >
+                {months[activeTab] ? `${months[activeTab]} ✏️` : "＋ 月を設定"}
+              </button>
+            )}
+          </div>
+
           {colorTabImages.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {colorTabImages.map(({ image, path }) => renderImage(image, path))}

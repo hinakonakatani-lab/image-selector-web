@@ -91,6 +91,7 @@ export default async function Home({
   // 画像・色データ取得
   let folders: DriveFolder[] = [];
   let colors: Record<string, string> = {};
+  let months: Record<string, string> = {};
   let error = "";
 
   if (folderId && session.accessToken) {
@@ -101,8 +102,11 @@ export default async function Home({
 
       folders = await getFoldersRecursive(drive, folderId, "");
 
-      const key = `colors:${session.user?.email}:${folderId}`;
-      colors = (await kv.get<Record<string, string>>(key)) || {};
+      const colorKey = `colors:${session.user?.email}:${folderId}`;
+      colors = (await kv.get<Record<string, string>>(colorKey)) || {};
+
+      const monthKey = `months:${session.user?.email}:${folderId}`;
+      months = (await kv.get<Record<string, string>>(monthKey)) || {};
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : "エラーが発生しました";
     }
@@ -192,7 +196,7 @@ export default async function Home({
 
         {/* 画像グリッド */}
         {folders.length > 0 && (
-          <ImageGrid folders={folders} folderId={folderId} initialColors={colors} />
+          <ImageGrid folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} />
         )}
 
         {/* 画像なし */}
