@@ -80,8 +80,8 @@ export default async function Home({
   const folderId = params.folderId || "";
   const forceRefresh = params.refresh === "1";
 
-  // 未ログイン時のログイン画面
-  if (!session) {
+  // 未ログイン or トークン更新失敗 → ログイン画面
+  if (!session || session.error === "RefreshAccessTokenError") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-xl shadow text-center">
