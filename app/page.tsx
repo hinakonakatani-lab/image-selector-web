@@ -8,6 +8,7 @@ const kv = new Redis({
 });
 import ImageGrid from "@/app/components/ImageGrid";
 import FolderBookmarks from "@/app/components/FolderBookmarks";
+import ExportImport from "@/app/components/ExportImport";
 import type { DriveFolder } from "@/app/api/drive/route";
 
 type Bookmark = { id: string; name: string; folderId: string };
@@ -164,6 +165,7 @@ export default async function Home({
       <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
         <h1 className="text-lg font-bold">🖼️ 画像選定ツール</h1>
         <div className="flex items-center gap-3">
+          <ExportImport />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
           <form
             action={async () => {
