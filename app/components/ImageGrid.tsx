@@ -234,6 +234,17 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
             className="max-w-full max-h-full object-contain pointer-events-none"
             loading="lazy"
             draggable={false}
+            onError={e => {
+              const el = e.currentTarget;
+              el.style.display = "none";
+              const parent = el.parentElement;
+              if (parent && !parent.querySelector(".thumb-error")) {
+                const div = document.createElement("div");
+                div.className = "thumb-error flex flex-col items-center justify-center text-gray-400 text-xs p-2 text-center";
+                div.innerHTML = `<span class="text-2xl mb-1">🔄</span><span>再読み込みで表示</span>`;
+                parent.appendChild(div);
+              }
+            }}
           />
         </div>
         {/* 選択オーバーレイ */}
