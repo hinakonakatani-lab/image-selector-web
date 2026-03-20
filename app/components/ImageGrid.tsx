@@ -163,11 +163,11 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         onMouseEnter={() => handleMouseEnter(image.id)}
         title={image.name}
       >
-        <div className="aspect-square">
+        <div className="flex items-center justify-center bg-gray-100" style={{ height: "160px" }}>
           <img
             src={image.thumbnailUrl}
             alt={image.name}
-            className="w-full h-full object-cover pointer-events-none"
+            className="max-w-full max-h-full object-contain pointer-events-none"
             loading="lazy"
             draggable={false}
           />
@@ -343,9 +343,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
             )}
             <button
               onClick={() => setSelected(new Set())}
-              className="ml-auto px-3 py-1.5 rounded text-sm text-gray-400 hover:text-gray-600"
+              className="ml-auto px-4 py-1.5 rounded text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
             >
-              ✕ 選択解除
+              ✕ 全選択解除
             </button>
           </div>
         </div>
