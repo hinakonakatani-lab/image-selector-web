@@ -202,8 +202,8 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         </div>
       )}
 
-      {/* タブ */}
-      <div className="flex flex-wrap gap-1 mb-4 border-b">
+      {/* タブ（スクロール追従） */}
+      <div className="flex flex-wrap gap-1 mb-4 border-b sticky top-[57px] z-30 bg-white py-1 -mx-4 px-4 shadow-sm">
         <button
           onClick={() => setActiveTab("all")}
           className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
