@@ -10,8 +10,8 @@ const kv = new Redis({
 // 色データのキー形式: colors:{userId}:{folderId}
 // 値: { fileId: colorCode } のJSON
 
-function getKey(userId: string, folderId: string) {
-  return `colors:${userId}:${folderId}`;
+function getKey(_userId: string, folderId: string) {
+  return `colors:shared:${folderId}`;
 }
 
 // 色データを取得

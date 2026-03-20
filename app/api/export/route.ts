@@ -22,8 +22,8 @@ export async function GET() {
   const folders: Record<string, { name: string; colors: Record<string, string>; months: Record<string, string> }> = {};
 
   for (const b of bookmarks) {
-    const colors = (await kv.get<Record<string, string>>(`colors:${email}:${b.folderId}`)) || {};
-    const months = (await kv.get<Record<string, string>>(`months:${email}:${b.folderId}`)) || {};
+    const colors = (await kv.get<Record<string, string>>(`colors:shared:${b.folderId}`)) || {};
+    const months = (await kv.get<Record<string, string>>(`months:shared:${b.folderId}`)) || {};
     folders[b.folderId] = { name: b.name, colors, months };
   }
 

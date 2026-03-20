@@ -149,10 +149,10 @@ export default async function Home({
         }
       }
 
-      const colorKey = `colors:${session.user?.email}:${folderId}`;
+      const colorKey = `colors:shared:${folderId}`;
       colors = (await kv.get<Record<string, string>>(colorKey)) || {};
 
-      const monthKey = `months:${session.user?.email}:${folderId}`;
+      const monthKey = `months:shared:${folderId}`;
       months = (await kv.get<Record<string, string>>(monthKey)) || {};
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : "エラーが発生しました";

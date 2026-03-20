@@ -32,12 +32,12 @@ export async function POST(request: Request) {
   let restoredFolders = 0;
   for (const [folderId, folderData] of Object.entries(data.folders) as [string, { colors: Record<string, string>; months: Record<string, string> }][]) {
     if (folderData.colors && Object.keys(folderData.colors).length > 0) {
-      const existingColors = (await kv.get<Record<string, string>>(`colors:${email}:${folderId}`)) || {};
-      await kv.set(`colors:${email}:${folderId}`, { ...existingColors, ...folderData.colors });
+      const existingColors = (await kv.get<Record<string, string>>(`colors:shared:${folderId}`)) || {};
+      await kv.set(`colors:shared:${folderId}`, { ...existingColors, ...folderData.colors });
     }
     if (folderData.months && Object.keys(folderData.months).length > 0) {
-      const existingMonths = (await kv.get<Record<string, string>>(`months:${email}:${folderId}`)) || {};
-      await kv.set(`months:${email}:${folderId}`, { ...existingMonths, ...folderData.months });
+      const existingMonths = (await kv.get<Record<string, string>>(`months:shared:${folderId}`)) || {};
+      await kv.set(`months:shared:${folderId}`, { ...existingMonths, ...folderData.months });
     }
     restoredFolders++;
   }

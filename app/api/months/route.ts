@@ -7,8 +7,8 @@ const kv = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 });
 
-function getKey(userId: string, folderId: string) {
-  return `months:${userId}:${folderId}`;
+function getKey(_userId: string, folderId: string) {
+  return `months:shared:${folderId}`;
 }
 
 export async function GET(request: Request) {
