@@ -342,9 +342,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         </>
       )}
 
-      {/* 選択中の固定アクションバー */}
+      {/* 選択中のアクションバー（タブの直下に固定） */}
       {selected.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-lg px-4 py-3">
+        <div className="sticky top-[105px] z-20 bg-white border-b border-t shadow-sm px-4 py-2 -mx-4 mb-4">
           <div className="max-w-screen-2xl mx-auto flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-gray-700 mr-2">
               {selected.size}枚選択中
@@ -386,8 +386,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         </div>
       )}
 
-      {/* アクションバー分の余白 */}
-      {selected.size > 0 && <div className="h-20" />}
     </div>
   );
 }
