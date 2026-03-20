@@ -94,10 +94,20 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
           style={{ left: popup.x, top: popup.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <ColorPicker
-            currentColor={colors[popup.image.id] ?? null}
-            onSelect={handleColorSelect}
-          />
+          <div className="bg-white rounded shadow-lg border overflow-hidden">
+            <a
+              href={popup.image.webViewLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 border-b"
+            >
+              🔗 Googleドライブで開く
+            </a>
+            <ColorPicker
+              currentColor={colors[popup.image.id] ?? null}
+              onSelect={handleColorSelect}
+            />
+          </div>
         </div>
       )}
 
