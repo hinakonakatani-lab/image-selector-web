@@ -22,6 +22,26 @@ export default function ExportImport() {
     setTimeout(() => setStatus(""), 3000);
   };
 
+  const handleAdminBackup = async () => {
+    setStatus("全データ取得中...");
+    const res = await fetch("/api/admin-backup");
+    if (!res.ok) {
+      setStatus("❌ バックアップに失敗しました");
+      return;
+    }
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `admin-backup-all-drives-${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus(`✅ ${data.totalFolders}件のドライブIDをバックアップしました`);
+    setTimeout(() => setStatus(""), 4000);
+  };
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -52,9 +72,16 @@ export default function ExportImport() {
   return (
     <div className="flex items-center gap-2">
       <button
+        onClick={handleAdminBackup}
+        className="text-xs px-2 py-1 rounded border border-orange-300 text-orange-500 hover:border-orange-400 hover:text-orange-700 transition-colors"
+        title="登録済み全ドライブIDの色・月データを丸ごとバックアップ（管理者用）"
+      >
+        📦 全データBK
+      </button>
+      <button
         onClick={handleExport}
         className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
-        title="全データをJSONでバックアップ"
+        title="自分のブックマーク分をJSONでバックアップ"
       >
         💾 バックアップ
       </button>
