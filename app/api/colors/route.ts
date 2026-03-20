@@ -56,3 +56,23 @@ export async function POST(request: Request) {
   await kv.set(key, colors);
   return NextResponse.json({ ok: true });
 }
+
+// 色データを一括インポート（スプレッドシートからのデータ）
+export async function PUT(request: Request) {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "未ログイン" }, { status: 401 });
+  }
+
+  const { folderId, importColors } = await request.json();
+  if (!folderId || !importColors) {
+    return NextResponse.json({ error: "folderId・importColorsが必要です" }, { status: 400 });
+  }
+
+  const key = getKey(session.user.email, folderId);
+  const existing = (await kv.get<Record<string, string>>(key)) || {};
+  const merged = { ...existing, ...importColors };
+
+  await kv.set(key, merged);
+  return NextResponse.json({ ok: true, count: Object.keys(importColors).length });
+}

@@ -30,6 +30,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [activeTab, setActiveTab] = useState("all");
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [monthInput, setMonthInput] = useState("");
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importStatus, setImportStatus] = useState("");
   const isDragging = useRef(false);
   const imageMap = useRef<Map<string, DriveImage>>(new Map());
 
@@ -94,6 +97,40 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     );
     setSaving(false);
   }, [selected, folderId]);
+
+  const handleImport = useCallback(async () => {
+    const importColors: Record<string, string> = {};
+    const lines = importText.trim().split("\n");
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        const fileId = parts[0];
+        const color = parts[parts.length - 1];
+        if (fileId && color.startsWith("#")) {
+          importColors[fileId] = color;
+        }
+      }
+    }
+    const count = Object.keys(importColors).length;
+    if (count === 0) {
+      setImportStatus("読み込めるデータがありませんでした。形式を確認してください。");
+      return;
+    }
+    setImportStatus("インポート中...");
+    const res = await fetch("/api/colors", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, importColors }),
+    });
+    if (res.ok) {
+      setColors(prev => ({ ...prev, ...importColors }));
+      setImportStatus(`✅ ${count}件インポートしました`);
+      setImportText("");
+      setTimeout(() => { setShowImport(false); setImportStatus(""); }, 1500);
+    } else {
+      setImportStatus("❌ インポートに失敗しました");
+    }
+  }, [importText, folderId]);
 
   // 全画像をパス付きでフラット化（handleClearColorTabで使うため先に宣言）
   const allImagesWithPath = folders.flatMap(folder =>
@@ -226,6 +263,45 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       {saving && (
         <div className="fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded text-sm z-50">
           保存中...
+        </div>
+      )}
+
+      {/* インポートボタン */}
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
+          className="text-sm px-3 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-600"
+        >
+          📥 色データをインポート
+        </button>
+      </div>
+
+      {/* インポートパネル */}
+      {showImport && (
+        <div className="mb-4 p-4 bg-gray-50 border rounded-lg">
+          <p className="text-sm text-gray-600 mb-2 font-medium">スプレッドシートの色データを貼り付けてください：</p>
+          <p className="text-xs text-gray-400 mb-2">形式：ファイルID（スペース）#カラーコード　を1行ずつ</p>
+          <textarea
+            value={importText}
+            onChange={e => setImportText(e.target.value)}
+            placeholder={"1ADLOYQQid9SwlI...    #a4c2f4\n1WiQaPmGXJ9TEq...    #ea9999"}
+            className="w-full h-40 border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={handleImport}
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded"
+            >
+              インポート実行
+            </button>
+            <button
+              onClick={() => { setShowImport(false); setImportText(""); setImportStatus(""); }}
+              className="text-gray-400 hover:text-gray-600 text-sm px-3 py-1.5"
+            >
+              キャンセル
+            </button>
+            {importStatus && <span className="text-sm text-gray-600">{importStatus}</span>}
+          </div>
         </div>
       )}
 
