@@ -230,7 +230,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       )}
 
       {/* タブ（スクロール追従） */}
-      <div className="flex flex-wrap gap-1 mb-4 border-b sticky top-[57px] z-30 bg-white py-1 -mx-4 px-4 shadow-sm">
+      <div className={`flex flex-wrap gap-1 mb-4 border-b sticky z-20 bg-white py-1 -mx-4 px-4 shadow-sm ${selected.size > 0 ? "top-[101px]" : "top-[57px]"}`}>
         <button
           onClick={() => setActiveTab("all")}
           className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -342,9 +342,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         </>
       )}
 
-      {/* 選択中のアクションバー（タブの直下に固定） */}
+      {/* 選択中のアクションバー（ヘッダー直下に固定） */}
       {selected.size > 0 && (
-        <div className="sticky top-[105px] z-20 bg-white border-b border-t shadow-sm px-4 py-2 -mx-4 mb-4">
+        <div className="fixed top-[57px] left-0 right-0 z-30 bg-blue-50 border-b border-blue-200 shadow-md px-4 py-2">
           <div className="max-w-screen-2xl mx-auto flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-gray-700 mr-2">
               {selected.size}枚選択中
