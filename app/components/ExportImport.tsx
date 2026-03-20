@@ -76,7 +76,7 @@ export default function ExportImport() {
         className="text-xs px-2 py-1 rounded border border-orange-300 text-orange-500 hover:border-orange-400 hover:text-orange-700 transition-colors"
         title="登録済み全ドライブIDの色・月データを丸ごとバックアップ（管理者用）"
       >
-        📦 全データBK
+        📦 全データBK(管理者用)
       </button>
       <button
         onClick={handleExport}

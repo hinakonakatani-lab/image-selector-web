@@ -145,7 +145,7 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
               value={nameInput}
               onChange={e => setNameInput(e.target.value)}
               onKeyDown={e => {
-                if (e.key === "Enter") handleAdd();
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) handleAdd();
                 if (e.key === "Escape") setAdding(false);
               }}
               placeholder="例：〇〇会社"
