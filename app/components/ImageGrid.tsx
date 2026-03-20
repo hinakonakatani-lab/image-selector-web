@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import ColorPicker from "./ColorPicker";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
 
 const YELLOW = "#ffe599";
@@ -23,103 +22,110 @@ type Props = {
   initialMonths: Record<string, string>;
 };
 
-type Popup = {
-  image: DriveImage;
-  x: number;
-  y: number;
-} | null;
-
 export default function ImageGrid({ folders, folderId, initialColors, initialMonths }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
-  const [popup, setPopup] = useState<Popup>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState("all");
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [monthInput, setMonthInput] = useState("");
+  const isDragging = useRef(false);
+  const imageMap = useRef<Map<string, DriveImage>>(new Map());
 
-  const handleImageClick = useCallback(
-    (image: DriveImage, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (popup?.image.id === image.id) {
-        setPopup(null);
-        return;
+  // 全画像のマップを構築（Drive URLアクセス用）
+  useEffect(() => {
+    imageMap.current.clear();
+    for (const folder of folders) {
+      for (const image of folder.images) {
+        imageMap.current.set(image.id, image);
       }
-      const x = Math.min(e.clientX, window.innerWidth - 260);
-      const y = Math.min(e.clientY + 10, window.innerHeight - 280);
-      setPopup({ image, x, y });
-    },
-    [popup]
-  );
+    }
+  }, [folders]);
 
-  const handleColorSelect = useCallback(
-    async (color: string | null) => {
-      if (!popup) return;
-      const fileId = popup.image.id;
-      setSaving(true);
+  // ドラッグ終了をwindowで検知
+  useEffect(() => {
+    const onMouseUp = () => { isDragging.current = false; };
+    window.addEventListener("mouseup", onMouseUp);
+    return () => window.removeEventListener("mouseup", onMouseUp);
+  }, []);
 
-      setColors((prev) => {
-        const next = { ...prev };
-        if (color === null) {
-          delete next[fileId];
-        } else {
-          next[fileId] = color;
-        }
-        return next;
-      });
-      setPopup(null);
+  const handleMouseDown = useCallback((id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
-      await fetch("/api/colors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderId, fileId, color }),
-      });
-      setSaving(false);
-    },
-    [popup, folderId]
-  );
+  const handleMouseEnter = useCallback((id: string) => {
+    if (!isDragging.current) return;
+    setSelected(prev => {
+      if (prev.has(id)) return prev;
+      return new Set([...prev, id]);
+    });
+  }, []);
 
-  const handleMonthSave = useCallback(
-    async (color: string) => {
-      const month = monthInput.trim();
-      setMonths((prev) => {
-        const next = { ...prev };
-        if (!month) {
-          delete next[color];
-        } else {
-          next[color] = month;
-        }
-        return next;
-      });
-      setEditingMonth(null);
-      await fetch("/api/months", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderId, color, month: month || null }),
-      });
-    },
-    [monthInput, folderId]
-  );
+  const applyColor = useCallback(async (color: string | null) => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    const ids = Array.from(selected);
+
+    setColors(prev => {
+      const next = { ...prev };
+      for (const id of ids) {
+        if (color === null) delete next[id];
+        else next[id] = color;
+      }
+      return next;
+    });
+    setSelected(new Set());
+
+    await Promise.all(
+      ids.map(fileId =>
+        fetch("/api/colors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folderId, fileId, color }),
+        })
+      )
+    );
+    setSaving(false);
+  }, [selected, folderId]);
+
+  const handleMonthSave = useCallback(async (color: string) => {
+    const month = monthInput.trim();
+    setMonths(prev => {
+      const next = { ...prev };
+      if (!month) delete next[color]; else next[color] = month;
+      return next;
+    });
+    setEditingMonth(null);
+    await fetch("/api/months", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, color, month: month || null }),
+    });
+  }, [monthInput, folderId]);
 
   // 全画像をパス付きでフラット化
-  const allImagesWithPath = folders.flatMap((folder) =>
-    folder.images.map((image) => ({ image, path: folder.path }))
+  const allImagesWithPath = folders.flatMap(folder =>
+    folder.images.map(image => ({ image, path: folder.path }))
   );
 
-  // 各色タブの枚数
   const colorCounts = COLOR_TABS.reduce((acc, tab) => {
-    acc[tab.value] = allImagesWithPath.filter(
-      ({ image }) => colors[image.id] === tab.value
-    ).length;
+    acc[tab.value] = allImagesWithPath.filter(({ image }) => colors[image.id] === tab.value).length;
     return acc;
   }, {} as Record<string, number>);
 
-  // 「全て」タブ：グレーを除外し、黄色を先頭に
+  // 全てタブ：グレーを除外・黄色先頭
   const sortedFolders = folders
-    .map((folder) => ({
+    .map(folder => ({
       ...folder,
       images: [...folder.images]
-        .filter((img) => colors[img.id] !== GRAY)
+        .filter(img => colors[img.id] !== GRAY)
         .sort((a, b) => {
           const aY = colors[a.id] === YELLOW;
           const bY = colors[b.id] === YELLOW;
@@ -128,85 +134,71 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
           return 0;
         }),
     }))
-    .filter((folder) => folder.images.length > 0);
+    .filter(folder => folder.images.length > 0);
 
-  // 色タブ：対象色の画像をパス付きで表示
-  const colorTabImages =
-    activeTab !== "all"
-      ? allImagesWithPath.filter(({ image }) => colors[image.id] === activeTab)
-      : [];
+  const colorTabImages = activeTab !== "all"
+    ? allImagesWithPath.filter(({ image }) => colors[image.id] === activeTab)
+    : [];
 
-  const allCount = allImagesWithPath.filter(
-    ({ image }) => colors[image.id] !== GRAY
-  ).length;
+  const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
+
+  const singleSelected = selected.size === 1
+    ? imageMap.current.get([...selected][0])
+    : null;
 
   const renderImage = (image: DriveImage, path?: string) => {
     const color = colors[image.id];
+    const isSelected = selected.has(image.id);
     return (
       <div
         key={image.id}
-        className="relative cursor-pointer rounded overflow-hidden"
+        className="relative cursor-pointer rounded overflow-hidden select-none"
         style={{
-          outline: color ? `4px solid ${color}` : "none",
+          outline: isSelected
+            ? "3px solid #3b82f6"
+            : color ? `4px solid ${color}` : "none",
           backgroundColor: color || "#f0f0f0",
         }}
-        onClick={(e) => handleImageClick(image, e)}
+        onMouseDown={e => handleMouseDown(image.id, e)}
+        onMouseEnter={() => handleMouseEnter(image.id)}
         title={image.name}
       >
         <div className="aspect-square">
           <img
             src={image.thumbnailUrl}
             alt={image.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover pointer-events-none"
             loading="lazy"
+            draggable={false}
           />
         </div>
+        {/* 選択オーバーレイ */}
+        {isSelected && (
+          <div className="absolute inset-0 bg-blue-500/20 flex items-start justify-end p-1">
+            <div className="bg-blue-500 rounded-full w-5 h-5 flex items-center justify-center">
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+        )}
         {path && (
-          <div
-            className="text-xs text-gray-600 px-1 py-0.5 bg-white truncate"
-            title={path}
-          >
+          <div className="text-xs text-gray-600 px-1 py-0.5 bg-white truncate" title={path}>
             📁 {path}
           </div>
         )}
-        {color && (
-          <div
-            className="absolute bottom-0 left-0 right-0 h-1.5"
-            style={{ backgroundColor: color }}
-          />
+        {color && !isSelected && (
+          <div className="absolute bottom-0 left-0 right-0 h-1.5" style={{ backgroundColor: color }} />
         )}
       </div>
     );
   };
 
   return (
-    <div onClick={() => setPopup(null)}>
+    <div>
       {saving && (
         <div className="fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded text-sm z-50">
           保存中...
-        </div>
-      )}
-
-      {popup && (
-        <div
-          className="fixed z-50"
-          style={{ left: popup.x, top: popup.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-white rounded shadow-lg border overflow-hidden">
-            <a
-              href={popup.image.webViewLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 border-b"
-            >
-              🔗 Googleドライブで開く
-            </a>
-            <ColorPicker
-              currentColor={colors[popup.image.id] ?? null}
-              onSelect={handleColorSelect}
-            />
-          </div>
         </div>
       )}
 
@@ -222,7 +214,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         >
           全て（{allCount}）
         </button>
-        {COLOR_TABS.map((tab) => (
+        {COLOR_TABS.map(tab => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
@@ -234,9 +226,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
           >
             {tab.emoji} {tab.label}
             {months[tab.value] && (
-              <span className="ml-1 text-xs font-normal text-orange-500">
-                {months[tab.value]}
-              </span>
+              <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
             )}
             （{colorCounts[tab.value]}）
           </button>
@@ -246,20 +236,18 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       {/* 全てタブ */}
       {activeTab === "all" && (
         <>
-          {sortedFolders.map((folder) => (
+          {sortedFolders.map(folder => (
             <div key={folder.id} className="mb-8">
               <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
                 📁 {folder.path}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
-                {folder.images.map((image) => renderImage(image))}
+                {folder.images.map(image => renderImage(image))}
               </div>
             </div>
           ))}
           {sortedFolders.length === 0 && (
-            <div className="text-center text-gray-400 py-10">
-              画像がありません
-            </div>
+            <div className="text-center text-gray-400 py-10">画像がありません</div>
           )}
         </>
       )}
@@ -275,24 +263,23 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
                 <input
                   type="text"
                   value={monthInput}
-                  onChange={(e) => setMonthInput(e.target.value)}
-                  onKeyDown={(e) => {
+                  onChange={e => setMonthInput(e.target.value)}
+                  onKeyDown={e => {
                     if (e.key === "Enter") handleMonthSave(activeTab);
                     if (e.key === "Escape") setEditingMonth(null);
                   }}
                   placeholder="例：4月、2024年5月"
                   className="border rounded px-2 py-1 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
                   autoFocus
-                  onClick={(e) => e.stopPropagation()}
                 />
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleMonthSave(activeTab); }}
+                  onClick={() => handleMonthSave(activeTab)}
                   className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded"
                 >
                   保存
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setEditingMonth(null); }}
+                  onClick={() => setEditingMonth(null)}
                   className="text-gray-400 hover:text-gray-600 text-sm px-2 py-1"
                 >
                   キャンセル
@@ -300,11 +287,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
               </>
             ) : (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingMonth(activeTab);
-                  setMonthInput(months[activeTab] || "");
-                }}
+                onClick={() => { setEditingMonth(activeTab); setMonthInput(months[activeTab] || ""); }}
                 className="text-sm px-3 py-1 rounded border border-dashed border-gray-300 hover:border-gray-400 text-gray-600"
               >
                 {months[activeTab] ? `${months[activeTab]} ✏️` : "＋ 月を設定"}
@@ -323,6 +306,53 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
           )}
         </>
       )}
+
+      {/* 選択中の固定アクションバー */}
+      {selected.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-lg px-4 py-3">
+          <div className="max-w-screen-2xl mx-auto flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700 mr-2">
+              {selected.size}枚選択中
+            </span>
+            {COLOR_TABS.map(c => (
+              <button
+                key={c.value}
+                onClick={() => applyColor(c.value)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-sm border-2 border-transparent hover:border-gray-400 transition-all"
+                style={{ backgroundColor: c.value }}
+                title={c.label}
+              >
+                {c.emoji} {c.label}
+              </button>
+            ))}
+            <button
+              onClick={() => applyColor(null)}
+              className="px-3 py-1.5 rounded text-sm border border-gray-300 hover:border-gray-500 bg-white text-gray-600"
+            >
+              ⬜ 色を消す
+            </button>
+            {singleSelected && (
+              <a
+                href={singleSelected.webViewLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded text-sm text-blue-600 border border-blue-300 hover:bg-blue-50"
+              >
+                🔗 ドライブで開く
+              </a>
+            )}
+            <button
+              onClick={() => setSelected(new Set())}
+              className="ml-auto px-3 py-1.5 rounded text-sm text-gray-400 hover:text-gray-600"
+            >
+              ✕ 選択解除
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* アクションバー分の余白 */}
+      {selected.size > 0 && <div className="h-20" />}
     </div>
   );
 }
