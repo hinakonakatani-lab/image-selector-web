@@ -9,6 +9,11 @@ const kv = new Redis({
 import ImageGrid from "@/app/components/ImageGrid";
 import type { DriveFolder } from "@/app/api/drive/route";
 
+type FolderCache = {
+  folders: DriveFolder[];
+  cachedAt: number;
+};
+
 async function getFoldersRecursive(
   drive: ReturnType<typeof google.drive>,
   folderId: string,
@@ -54,14 +59,26 @@ async function getFoldersRecursive(
   return result;
 }
 
+function formatCachedAt(cachedAt: number): string {
+  const diffMs = Date.now() - cachedAt;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay > 0) return `${diffDay}日前`;
+  if (diffHour > 0) return `${diffHour}時間前`;
+  if (diffMin > 0) return `${diffMin}分前`;
+  return "たった今";
+}
+
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ folderId?: string }>;
+  searchParams: Promise<{ folderId?: string; refresh?: string }>;
 }) {
   const session = await auth();
   const params = await searchParams;
   const folderId = params.folderId || "";
+  const forceRefresh = params.refresh === "1";
 
   // 未ログイン時のログイン画面
   if (!session) {
@@ -92,15 +109,32 @@ export default async function Home({
   let folders: DriveFolder[] = [];
   let colors: Record<string, string> = {};
   let months: Record<string, string> = {};
+  let cachedAt: number | null = null;
   let error = "";
 
   if (folderId && session.accessToken) {
     try {
-      const oauth2Client = new google.auth.OAuth2();
-      oauth2Client.setCredentials({ access_token: session.accessToken });
-      const drive = google.drive({ version: "v3", auth: oauth2Client });
+      const cacheKey = `cache:${session.user?.email}:${folderId}`;
 
-      folders = await getFoldersRecursive(drive, folderId, "");
+      // キャッシュ確認（強制更新でなければ使用）
+      if (!forceRefresh) {
+        const cached = await kv.get<FolderCache>(cacheKey);
+        if (cached) {
+          folders = cached.folders;
+          cachedAt = cached.cachedAt;
+        }
+      }
+
+      // キャッシュなし or 強制更新 → Google Driveから取得してキャッシュ保存
+      if (folders.length === 0) {
+        const oauth2Client = new google.auth.OAuth2();
+        oauth2Client.setCredentials({ access_token: session.accessToken });
+        const drive = google.drive({ version: "v3", auth: oauth2Client });
+
+        folders = await getFoldersRecursive(drive, folderId, "");
+        cachedAt = Date.now();
+        await kv.set(cacheKey, { folders, cachedAt });
+      }
 
       const colorKey = `colors:${session.user?.email}:${folderId}`;
       colors = (await kv.get<Record<string, string>>(colorKey)) || {};
@@ -134,7 +168,7 @@ export default async function Home({
 
       <main className="max-w-screen-2xl mx-auto px-4 py-6">
         {/* フォルダID入力フォーム */}
-        <form method="get" className="mb-6 flex gap-2">
+        <form method="get" className="mb-4 flex gap-2">
           <input
             name="folderId"
             defaultValue={folderId}
@@ -148,6 +182,23 @@ export default async function Home({
             読み込む
           </button>
         </form>
+
+        {/* キャッシュ情報 + 再読み込みボタン */}
+        {folderId && cachedAt && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-gray-400">
+            <span>📦 キャッシュ表示中（最終更新: {formatCachedAt(cachedAt)}）</span>
+            <form method="get">
+              <input type="hidden" name="folderId" value={folderId} />
+              <input type="hidden" name="refresh" value="1" />
+              <button
+                type="submit"
+                className="flex items-center gap-1 px-2 py-0.5 rounded border border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+              >
+                🔄 再読み込み
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* 凡例 */}
         {folderId && (
@@ -169,7 +220,6 @@ export default async function Home({
                 {c.label}
               </span>
             ))}
-            <span className="text-xs text-gray-400 ml-1">← 画像をクリックして色をつける</span>
           </div>
         )}
 
