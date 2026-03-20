@@ -115,25 +115,30 @@ export default async function Home({
   if (folderId && session.accessToken) {
     try {
       const cacheKey = `cache:${session.user?.email}:${folderId}`;
+      let fromCache = false;
 
       // キャッシュ確認（強制更新でなければ使用）
       if (!forceRefresh) {
         const cached = await kv.get<FolderCache>(cacheKey);
-        if (cached) {
+        if (cached?.folders?.length) {
           folders = cached.folders;
           cachedAt = cached.cachedAt;
+          fromCache = true;
         }
       }
 
       // キャッシュなし or 強制更新 → Google Driveから取得してキャッシュ保存
-      if (folders.length === 0) {
+      if (!fromCache) {
         const oauth2Client = new google.auth.OAuth2();
         oauth2Client.setCredentials({ access_token: session.accessToken });
         const drive = google.drive({ version: "v3", auth: oauth2Client });
 
         folders = await getFoldersRecursive(drive, folderId, "");
-        cachedAt = Date.now();
-        await kv.set(cacheKey, { folders, cachedAt });
+        const now = Date.now();
+        if (folders.length > 0) {
+          await kv.set(cacheKey, { folders, cachedAt: now });
+          cachedAt = now;
+        }
       }
 
       const colorKey = `colors:${session.user?.email}:${folderId}`;
