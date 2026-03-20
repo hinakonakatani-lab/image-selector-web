@@ -3,8 +3,8 @@ import { google } from "googleapis";
 import { Redis } from "@upstash/redis";
 
 const kv = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
 });
 import ImageGrid from "@/app/components/ImageGrid";
 import type { DriveFolder } from "@/app/api/drive/route";
