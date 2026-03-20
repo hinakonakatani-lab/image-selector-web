@@ -263,7 +263,7 @@ export default async function Home({
 
         {/* 画像グリッド */}
         {folders.length > 0 && (
-          <ImageGrid folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} />
+          <ImageGrid key={folderId} folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} />
         )}
 
         {/* 画像なし */}
