@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 type Bookmark = { id: string; name: string; folderId: string };
@@ -14,6 +14,8 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks);
   const [adding, setAdding] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragId = useRef<string | null>(null);
   const router = useRouter();
 
   const handleAdd = async () => {
@@ -43,6 +45,41 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
     router.push(`/?folderId=${folderId}`);
   };
 
+  // ドラッグ＆ドロップ
+  const handleDragStart = (id: string) => {
+    dragId.current = id;
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (dragId.current !== id) setDragOverId(id);
+  };
+
+  const handleDrop = async (targetId: string) => {
+    if (!dragId.current || dragId.current === targetId) {
+      setDragOverId(null);
+      return;
+    }
+    const from = bookmarks.findIndex(b => b.id === dragId.current);
+    const to = bookmarks.findIndex(b => b.id === targetId);
+    const next = [...bookmarks];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setBookmarks(next);
+    setDragOverId(null);
+    dragId.current = null;
+    await fetch("/api/bookmarks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookmarks: next }),
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDragOverId(null);
+    dragId.current = null;
+  };
+
   return (
     <div className="mb-4">
       <div className="flex flex-wrap gap-2 items-center">
@@ -51,24 +88,40 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
         {bookmarks.map(b => (
           <div
             key={b.id}
-            className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm border transition-colors group ${
+            draggable
+            onDragStart={() => handleDragStart(b.id)}
+            onDragOver={e => handleDragOver(e, b.id)}
+            onDrop={() => handleDrop(b.id)}
+            onDragEnd={handleDragEnd}
+            className={`flex items-center gap-1 rounded-full px-2 py-1 text-sm border transition-all group cursor-grab active:cursor-grabbing select-none ${
               b.folderId === currentFolderId
                 ? "bg-blue-500 text-white border-blue-500"
                 : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600"
-            }`}
+            } ${dragOverId === b.id ? "ring-2 ring-blue-400 scale-105" : ""}`}
           >
+            {/* ドラッグハンドル */}
+            <span
+              className={`text-xs px-0.5 cursor-grab ${
+                b.folderId === currentFolderId ? "text-blue-200" : "text-gray-300"
+              }`}
+              title="ドラッグして並び替え"
+            >
+              ⠿
+            </span>
             <button
               onClick={() => handleSwitch(b.folderId)}
               className="font-medium"
+              draggable={false}
             >
               {b.name}
             </button>
             <button
               onClick={() => handleDelete(b.id)}
-              className={`ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity ${
+              className={`ml-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity ${
                 b.folderId === currentFolderId ? "text-blue-200 hover:text-white" : "text-gray-400 hover:text-red-500"
               }`}
               title="削除"
+              draggable={false}
             >
               ✕
             </button>
