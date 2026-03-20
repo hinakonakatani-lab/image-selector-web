@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
-    "@vercel/kv": "^3.0.0",
+    "@upstash/redis": "^1.37.0",
     "googleapis": "^171.4.0",
     "next": "16.2.0",
     "next-auth": "^5.0.0-beta.30",

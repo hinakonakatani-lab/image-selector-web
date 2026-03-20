@@ -1,6 +1,11 @@
 import { auth } from "@/auth";
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
+
+const kv = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 // 色データのキー形式: colors:{userId}:{folderId}
 // 値: { fileId: colorCode } のJSON
