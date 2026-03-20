@@ -258,8 +258,10 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     );
   };
 
+  const SIDEBAR_W = 112; // px
+
   return (
-    <div>
+    <div style={{ marginLeft: selected.size > 0 ? SIDEBAR_W : 0, transition: "margin-left 0.3s ease" }}>
       {saving && (
         <div className="fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded text-sm z-50">
           保存中...
@@ -418,53 +420,51 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         </>
       )}
 
-      {/* 選択中の左サイドパネル（ぬるっとスライドイン） */}
+      {/* 選択中の左サイドバー */}
       <div
-        className={`fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 bg-white border border-gray-200 shadow-xl rounded-r-2xl px-3 py-4 transition-all duration-300 ease-in-out ${
-          selected.size > 0 ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0 pointer-events-none"
-        }`}
-        style={{ minWidth: "88px" }}
+        className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
+        style={{
+          width: SIDEBAR_W,
+          transform: selected.size > 0 ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 0.3s ease",
+        }}
       >
-        <div className="text-xs font-bold text-gray-500 text-center mb-1">
-          {selected.size}枚
+        <div className="text-xs font-bold text-gray-400 text-center mb-2 pb-2 border-b">
+          {selected.size}枚選択中
         </div>
         {COLOR_TABS.map(c => (
           <button
             key={c.value}
             onClick={() => applyColor(c.value)}
-            className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs border-2 border-transparent hover:border-gray-400 transition-all"
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:opacity-80 transition-all font-medium"
             style={{ backgroundColor: c.value }}
             title={c.label}
           >
-            <span className="text-base">{c.emoji}</span>
-            <span>{c.label}</span>
+            {c.emoji} {c.label}
           </button>
         ))}
         <button
           onClick={() => applyColor(null)}
-          className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs border border-gray-300 hover:border-gray-500 bg-white text-gray-600"
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
         >
-          <span className="text-base">⬜</span>
-          <span>色を消す</span>
+          ⬜ 色を消す
         </button>
         {singleSelected && (
           <a
             href={singleSelected.webViewLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs text-blue-600 border border-blue-200 hover:bg-blue-50"
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-blue-600 border border-blue-200 hover:bg-blue-50"
           >
-            <span className="text-base">🔗</span>
-            <span>開く</span>
+            🔗 開く
           </a>
         )}
-        <div className="border-t border-gray-100 mt-1 pt-1">
+        <div className="mt-auto pt-2 border-t border-gray-100">
           <button
             onClick={() => setSelected(new Set())}
-            className="w-full flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+            className="w-full px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 text-left"
           >
-            <span className="text-base">✕</span>
-            <span>解除</span>
+            ✕ 全選択解除
           </button>
         </div>
       </div>
