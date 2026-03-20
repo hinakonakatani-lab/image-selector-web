@@ -14,7 +14,7 @@ async function getFoldersRecursive(
   folderId: string,
   parentPath: string
 ): Promise<DriveFolder[]> {
-  const nameRes = await drive.files.get({ fileId: folderId, fields: "name" });
+  const nameRes = await drive.files.get({ fileId: folderId, fields: "name", supportsAllDrives: true });
   const name = nameRes.data.name || folderId;
   const currentPath = parentPath ? `${parentPath} / ${name}` : name;
 
@@ -22,6 +22,8 @@ async function getFoldersRecursive(
     q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
     fields: "files(id, name, thumbnailLink, webViewLink)",
     pageSize: 1000,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const images = (imagesRes.data.files || []).map((f) => ({
@@ -40,6 +42,8 @@ async function getFoldersRecursive(
     q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     fields: "files(id, name)",
     pageSize: 100,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   for (const sub of subRes.data.files || []) {
