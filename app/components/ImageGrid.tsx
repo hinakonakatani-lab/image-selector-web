@@ -53,6 +53,21 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     return () => window.removeEventListener("mouseup", onMouseUp);
   }, []);
 
+  // ManualColorPickerからの手動着色を即時反映
+  useEffect(() => {
+    const onManualColor = (e: Event) => {
+      const { fileId, color } = (e as CustomEvent<{ fileId: string; color: string | null }>).detail;
+      setColors(prev => {
+        const next = { ...prev };
+        if (color) next[fileId] = color;
+        else delete next[fileId];
+        return next;
+      });
+    };
+    window.addEventListener("manualColorApplied", onManualColor);
+    return () => window.removeEventListener("manualColorApplied", onManualColor);
+  }, []);
+
   const handleMouseDown = useCallback((id: string, e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;

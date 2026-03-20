@@ -167,7 +167,7 @@ export default async function Home({
         <h1 className="text-lg font-bold">🖼️ 画像選定ツール</h1>
         <div className="flex items-center gap-3">
           <ExportImport />
-          <ManualColorPicker />
+          <ManualColorPicker folderId={folderId} />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
           <form
             action={async () => {

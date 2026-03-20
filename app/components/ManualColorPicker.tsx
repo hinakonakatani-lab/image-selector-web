@@ -11,7 +11,9 @@ const COLORS = [
   { value: "#999999", label: "グレー" },
 ];
 
-export default function ManualColorPicker() {
+type Props = { folderId: string };
+
+export default function ManualColorPicker({ folderId }: Props) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [selectedColor, setSelectedColor] = useState(COLORS[0].value);
@@ -20,24 +22,32 @@ export default function ManualColorPicker() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = async () => {
-    if (!url.trim()) return;
+    if (!url.trim() || !folderId) return;
     setLoading(true);
     setStatus("");
     const res = await fetch("/api/manual-color", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileUrl: url.trim(), color: selectedColor }),
+      body: JSON.stringify({ fileUrl: url.trim(), color: selectedColor, folderId }),
     });
     const result = await res.json();
     setLoading(false);
     if (res.ok) {
-      setStatus(`✅ ${result.fileName ?? result.fileId} に色を設定しました`);
+      // ImageGridに色の変化を即時反映させるカスタムイベントを発火
+      window.dispatchEvent(
+        new CustomEvent("manualColorApplied", {
+          detail: { fileId: result.fileId, color: result.color },
+        })
+      );
+      setStatus("✅ 色を設定しました");
       setUrl("");
-      setTimeout(() => setStatus(""), 4000);
+      setTimeout(() => setStatus(""), 3000);
     } else {
       setStatus(`❌ ${result.error}`);
     }
   };
+
+  if (!folderId) return null;
 
   return (
     <div className="relative">
