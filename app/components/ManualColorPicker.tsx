@@ -56,7 +56,7 @@ export default function ManualColorPicker({ folderId }: Props) {
         className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors"
         title="URL指定で手動着色"
       >
-        🎨
+        🎨手動着色
       </button>
 
       {open && (
