@@ -5,6 +5,16 @@ import ColorPicker from "./ColorPicker";
 import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
 
 const YELLOW = "#ffe599";
+const GRAY = "#999999";
+
+const COLOR_TABS = [
+  { value: "#ea9999", label: "赤", emoji: "🟥" },
+  { value: "#b6d7a8", label: "緑", emoji: "🟩" },
+  { value: "#a4c2f4", label: "青", emoji: "🟦" },
+  { value: "#b4a7d6", label: "紫", emoji: "🟪" },
+  { value: "#ffe599", label: "黄（候補）", emoji: "🟨" },
+  { value: "#999999", label: "グレー（NG）", emoji: "⬛" },
+];
 
 type Props = {
   folders: DriveFolder[];
@@ -22,6 +32,7 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [popup, setPopup] = useState<Popup>(null);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("all");
 
   const handleImageClick = useCallback(
     (image: DriveImage, e: React.MouseEvent) => {
@@ -30,7 +41,6 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
         setPopup(null);
         return;
       }
-      // ポップアップの位置を計算（画面からはみ出さないように）
       const x = Math.min(e.clientX, window.innerWidth - 260);
       const y = Math.min(e.clientY + 10, window.innerHeight - 280);
       setPopup({ image, x, y });
@@ -44,7 +54,6 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
       const fileId = popup.image.id;
       setSaving(true);
 
-      // 楽観的更新（先にUIに反映）
       setColors((prev) => {
         const next = { ...prev };
         if (color === null) {
@@ -56,7 +65,6 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
       });
       setPopup(null);
 
-      // サーバーに保存
       await fetch("/api/colors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,17 +75,83 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
     [popup, folderId]
   );
 
-  // 黄色の画像をフォルダ内先頭に並び替え
-  const sortedFolders = folders.map((folder) => ({
-    ...folder,
-    images: [...folder.images].sort((a, b) => {
-      const aYellow = colors[a.id] === YELLOW;
-      const bYellow = colors[b.id] === YELLOW;
-      if (aYellow && !bYellow) return -1;
-      if (!aYellow && bYellow) return 1;
-      return 0;
-    }),
-  }));
+  // 全画像をパス付きでフラット化
+  const allImagesWithPath = folders.flatMap((folder) =>
+    folder.images.map((image) => ({ image, path: folder.path }))
+  );
+
+  // 各色タブの枚数
+  const colorCounts = COLOR_TABS.reduce((acc, tab) => {
+    acc[tab.value] = allImagesWithPath.filter(
+      ({ image }) => colors[image.id] === tab.value
+    ).length;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // 「全て」タブ：グレーを除外し、黄色を先頭に
+  const sortedFolders = folders
+    .map((folder) => ({
+      ...folder,
+      images: [...folder.images]
+        .filter((img) => colors[img.id] !== GRAY)
+        .sort((a, b) => {
+          const aY = colors[a.id] === YELLOW;
+          const bY = colors[b.id] === YELLOW;
+          if (aY && !bY) return -1;
+          if (!aY && bY) return 1;
+          return 0;
+        }),
+    }))
+    .filter((folder) => folder.images.length > 0);
+
+  // 色タブ：対象色の画像をパス付きで表示
+  const colorTabImages =
+    activeTab !== "all"
+      ? allImagesWithPath.filter(({ image }) => colors[image.id] === activeTab)
+      : [];
+
+  const allCount = allImagesWithPath.filter(
+    ({ image }) => colors[image.id] !== GRAY
+  ).length;
+
+  const renderImage = (image: DriveImage, path?: string) => {
+    const color = colors[image.id];
+    return (
+      <div
+        key={image.id}
+        className="relative cursor-pointer rounded overflow-hidden"
+        style={{
+          outline: color ? `4px solid ${color}` : "none",
+          backgroundColor: color || "#f0f0f0",
+        }}
+        onClick={(e) => handleImageClick(image, e)}
+        title={image.name}
+      >
+        <div className="aspect-square">
+          <img
+            src={image.thumbnailUrl}
+            alt={image.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        </div>
+        {path && (
+          <div
+            className="text-xs text-gray-600 px-1 py-0.5 bg-white truncate"
+            title={path}
+          >
+            📁 {path}
+          </div>
+        )}
+        {color && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-1.5"
+            style={{ backgroundColor: color }}
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div onClick={() => setPopup(null)}>
@@ -87,7 +161,6 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
         </div>
       )}
 
-      {/* カラーピッカーポップアップ */}
       {popup && (
         <div
           className="fixed z-50"
@@ -111,47 +184,68 @@ export default function ImageGrid({ folders, folderId, initialColors }: Props) {
         </div>
       )}
 
-      {sortedFolders.map((folder) => (
-        <div key={folder.id} className="mb-8">
-          {/* フォルダ名ヘッダー */}
-          <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
-            📁 {folder.path}
-          </div>
+      {/* タブ */}
+      <div className="flex flex-wrap gap-1 mb-4 border-b">
+        <button
+          onClick={() => setActiveTab("all")}
+          className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "all"
+              ? "border-blue-500 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          全て（{allCount}）
+        </button>
+        {COLOR_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.value
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.emoji} {tab.label}（{colorCounts[tab.value]}）
+          </button>
+        ))}
+      </div>
 
-          {/* 画像グリッド */}
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
-            {folder.images.map((image) => {
-              const color = colors[image.id];
-              return (
-                <div
-                  key={image.id}
-                  className="relative cursor-pointer rounded overflow-hidden aspect-square"
-                  style={{
-                    outline: color ? `4px solid ${color}` : "none",
-                    backgroundColor: color || "#f0f0f0",
-                  }}
-                  onClick={(e) => handleImageClick(image, e)}
-                  title={image.name}
-                >
-                  <img
-                    src={image.thumbnailUrl}
-                    alt={image.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  {/* 色バッジ */}
-                  {color && (
-                    <div
-                      className="absolute bottom-0 left-0 right-0 h-2"
-                      style={{ backgroundColor: color }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+      {/* 全てタブ */}
+      {activeTab === "all" && (
+        <>
+          {sortedFolders.map((folder) => (
+            <div key={folder.id} className="mb-8">
+              <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
+                📁 {folder.path}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                {folder.images.map((image) => renderImage(image))}
+              </div>
+            </div>
+          ))}
+          {sortedFolders.length === 0 && (
+            <div className="text-center text-gray-400 py-10">
+              画像がありません
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 色別タブ */}
+      {activeTab !== "all" && (
+        <>
+          {colorTabImages.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+              {colorTabImages.map(({ image, path }) => renderImage(image, path))}
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 py-10">
+              この色がついた画像はまだありません
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
