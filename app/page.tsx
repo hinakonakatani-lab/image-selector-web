@@ -19,7 +19,7 @@ async function getFoldersRecursive(
   const currentPath = parentPath ? `${parentPath} / ${name}` : name;
 
   const imagesRes = await drive.files.list({
-    q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
+    q: `'${folderId}' in parents and mimeType contains 'image/' and not mimeType = 'image/vnd.adobe.photoshop' and trashed = false`,
     fields: "files(id, name, thumbnailLink, webViewLink)",
     pageSize: 1000,
     supportsAllDrives: true,
