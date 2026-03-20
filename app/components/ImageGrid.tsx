@@ -95,6 +95,33 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     setSaving(false);
   }, [selected, folderId]);
 
+  const handleClearColorTab = useCallback(async (color: string) => {
+    const tab = COLOR_TABS.find(t => t.value === color);
+    const count = allImagesWithPath.filter(({ image }) => colors[image.id] === color).length;
+    if (!window.confirm(`${tab?.emoji}${tab?.label} の画像 ${count}枚 の色を全て消します。\nよろしいですか？`)) return;
+
+    const ids = allImagesWithPath
+      .filter(({ image }) => colors[image.id] === color)
+      .map(({ image }) => image.id);
+
+    setSaving(true);
+    setColors(prev => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+    await Promise.all(
+      ids.map(fileId =>
+        fetch("/api/colors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folderId, fileId, color: null }),
+        })
+      )
+    );
+    setSaving(false);
+  }, [allImagesWithPath, colors, folderId]);
+
   const handleMonthSave = useCallback(async (color: string) => {
     const month = monthInput.trim();
     setMonths(prev => {
@@ -255,8 +282,8 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       {/* 色別タブ */}
       {activeTab !== "all" && (
         <>
-          {/* 月設定 */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* 月設定 + 一括削除 */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
             <span className="text-sm text-gray-500">使用月：</span>
             {editingMonth === activeTab ? (
               <>
@@ -291,6 +318,14 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
                 className="text-sm px-3 py-1 rounded border border-dashed border-gray-300 hover:border-gray-400 text-gray-600"
               >
                 {months[activeTab] ? `${months[activeTab]} ✏️` : "＋ 月を設定"}
+              </button>
+            )}
+            {colorTabImages.length > 0 && (
+              <button
+                onClick={() => handleClearColorTab(activeTab)}
+                className="ml-2 text-sm px-3 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
+              >
+                🗑️ この色を全て消す
               </button>
             )}
           </div>
