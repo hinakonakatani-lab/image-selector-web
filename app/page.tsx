@@ -1,64 +1,197 @@
-import Image from "next/image";
+import { auth, signIn, signOut } from "@/auth";
+import { google } from "googleapis";
+import { kv } from "@vercel/kv";
+import ImageGrid from "@/app/components/ImageGrid";
+import type { DriveFolder } from "@/app/api/drive/route";
 
-export default function Home() {
+async function getFoldersRecursive(
+  drive: ReturnType<typeof google.drive>,
+  folderId: string,
+  parentPath: string
+): Promise<DriveFolder[]> {
+  const nameRes = await drive.files.get({ fileId: folderId, fields: "name" });
+  const name = nameRes.data.name || folderId;
+  const currentPath = parentPath ? `${parentPath} / ${name}` : name;
+
+  const imagesRes = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
+    fields: "files(id, name, thumbnailLink, webViewLink)",
+    pageSize: 1000,
+  });
+
+  const images = (imagesRes.data.files || []).map((f) => ({
+    id: f.id!,
+    name: f.name!,
+    thumbnailUrl: f.thumbnailLink?.replace("=s220", "=s300") || "",
+    webViewLink: f.webViewLink!,
+  }));
+
+  const result: DriveFolder[] = [];
+  if (images.length > 0) {
+    result.push({ id: folderId, name, path: currentPath, images });
+  }
+
+  const subRes = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id, name)",
+    pageSize: 100,
+  });
+
+  for (const sub of subRes.data.files || []) {
+    const subFolders = await getFoldersRecursive(drive, sub.id!, currentPath);
+    result.push(...subFolders);
+  }
+
+  return result;
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ folderId?: string }>;
+}) {
+  const session = await auth();
+  const params = await searchParams;
+  const folderId = params.folderId || "";
+
+  // 未ログイン時のログイン画面
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-xl shadow text-center">
+          <h1 className="text-2xl font-bold mb-2">🖼️ 画像選定ツール</h1>
+          <p className="text-gray-500 mb-6">Googleアカウントでログインしてください</p>
+          <form
+            action={async () => {
+              "use server";
+              await signIn("google");
+            }}
+          >
+            <button
+              type="submit"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-medium"
+            >
+              Googleでログイン
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // 画像・色データ取得
+  let folders: DriveFolder[] = [];
+  let colors: Record<string, string> = {};
+  let error = "";
+
+  if (folderId && session.accessToken) {
+    try {
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({ access_token: session.accessToken });
+      const drive = google.drive({ version: "v3", auth: oauth2Client });
+
+      folders = await getFoldersRecursive(drive, folderId, "");
+
+      const key = `colors:${session.user?.email}:${folderId}`;
+      colors = (await kv.get<Record<string, string>>(key)) || {};
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : "エラーが発生しました";
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen bg-gray-50">
+      {/* ヘッダー */}
+      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <h1 className="text-lg font-bold">🖼️ 画像選定ツール</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">{session.user?.email}</span>
+          <form
+            action={async () => {
+              "use server";
+              await signOut();
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <button type="submit" className="text-sm text-gray-400 hover:text-gray-600">
+              ログアウト
+            </button>
+          </form>
         </div>
+      </header>
+
+      <main className="max-w-screen-2xl mx-auto px-4 py-6">
+        {/* フォルダID入力フォーム */}
+        <form method="get" className="mb-6 flex gap-2">
+          <input
+            name="folderId"
+            defaultValue={folderId}
+            placeholder="GoogleドライブのフォルダIDを入力（URLの末尾のランダムな文字列）"
+            className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <button
+            type="submit"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
+          >
+            読み込む
+          </button>
+        </form>
+
+        {/* 凡例 */}
+        {folderId && (
+          <div className="mb-4 flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-gray-500 font-medium">色の意味：</span>
+            {[
+              { color: "#ea9999", label: "🟥 赤" },
+              { color: "#b6d7a8", label: "🟩 緑" },
+              { color: "#a4c2f4", label: "🟦 青" },
+              { color: "#b4a7d6", label: "🟪 紫" },
+              { color: "#ffe599", label: "🟨 黄（候補）" },
+              { color: "#999999", label: "⬛ グレー（NG）" },
+            ].map((c) => (
+              <span
+                key={c.color}
+                className="px-2 py-0.5 rounded text-xs text-gray-700"
+                style={{ backgroundColor: c.color }}
+              >
+                {c.label}
+              </span>
+            ))}
+            <span className="text-xs text-gray-400 ml-1">← 画像をクリックして色をつける</span>
+          </div>
+        )}
+
+        {/* エラー表示 */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-4 text-sm">
+            エラー: {error}
+          </div>
+        )}
+
+        {/* フォルダ未入力の案内 */}
+        {!folderId && (
+          <div className="text-center text-gray-400 py-20">
+            <p className="text-5xl mb-4">📁</p>
+            <p className="text-lg">GoogleドライブのフォルダIDを入力して「読み込む」を押してください</p>
+            <p className="text-sm mt-2">
+              フォルダIDはGoogleドライブでフォルダを開いた時のURLの末尾部分です
+            </p>
+            <code className="block mt-2 text-xs bg-gray-100 px-3 py-1 rounded inline-block">
+              https://drive.google.com/drive/folders/<span className="text-blue-500 font-bold">ここがフォルダID</span>
+            </code>
+          </div>
+        )}
+
+        {/* 画像グリッド */}
+        {folders.length > 0 && (
+          <ImageGrid folders={folders} folderId={folderId} initialColors={colors} />
+        )}
+
+        {/* 画像なし */}
+        {folderId && folders.length === 0 && !error && (
+          <div className="text-center text-gray-400 py-20">
+            <p>このフォルダに画像が見つかりませんでした</p>
+          </div>
+        )}
       </main>
     </div>
   );
