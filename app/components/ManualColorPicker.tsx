@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 
 const COLORS = [
   { value: "#ea9999", label: "赤" },
-  { value: "#b6d7a8", label: "緑" },
   { value: "#a4c2f4", label: "青" },
+  { value: "#b6d7a8", label: "緑" },
   { value: "#b4a7d6", label: "紫" },
   { value: "#ffe599", label: "黄" },
   { value: "#999999", label: "グレー" },

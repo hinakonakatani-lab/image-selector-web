@@ -8,8 +8,8 @@ const GRAY = "#999999";
 
 const COLOR_TABS = [
   { value: "#ea9999", label: "赤", emoji: "🟥" },
-  { value: "#b6d7a8", label: "緑", emoji: "🟩" },
   { value: "#a4c2f4", label: "青", emoji: "🟦" },
+  { value: "#b6d7a8", label: "緑", emoji: "🟩" },
   { value: "#b4a7d6", label: "紫", emoji: "🟪" },
   { value: "#ffe599", label: "黄（候補）", emoji: "🟨" },
   { value: "#999999", label: "グレー（NG）", emoji: "⬛" },

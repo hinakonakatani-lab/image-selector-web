@@ -225,8 +225,8 @@ export default async function Home({
             <span className="text-xs text-gray-500 font-medium">色の意味：</span>
             {[
               { color: "#ea9999", label: "🟥 赤" },
-              { color: "#b6d7a8", label: "🟩 緑" },
               { color: "#a4c2f4", label: "🟦 青" },
+              { color: "#b6d7a8", label: "🟩 緑" },
               { color: "#b4a7d6", label: "🟪 紫" },
               { color: "#ffe599", label: "🟨 黄（候補）" },
               { color: "#999999", label: "⬛ グレー（NG）" },
