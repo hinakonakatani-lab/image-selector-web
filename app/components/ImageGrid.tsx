@@ -306,7 +306,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       )}
 
       {/* タブ（スクロール追従） */}
-      <div className={`flex flex-wrap gap-1 mb-4 border-b sticky z-20 bg-white py-1 -mx-4 px-4 shadow-sm ${selected.size > 0 ? "top-[101px]" : "top-[57px]"}`}>
+      <div className="flex flex-wrap gap-1 mb-4 border-b sticky top-[57px] z-20 bg-white py-1 -mx-4 px-4 shadow-sm">
         <button
           onClick={() => setActiveTab("all")}
           className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -418,49 +418,56 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         </>
       )}
 
-      {/* 選択中のアクションバー（ヘッダー直下に固定） */}
-      {selected.size > 0 && (
-        <div className="fixed top-[57px] left-0 right-0 z-30 bg-blue-50 border-b border-blue-200 shadow-md px-4 py-2">
-          <div className="max-w-screen-2xl mx-auto flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-gray-700 mr-2">
-              {selected.size}枚選択中
-            </span>
-            {COLOR_TABS.map(c => (
-              <button
-                key={c.value}
-                onClick={() => applyColor(c.value)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded text-sm border-2 border-transparent hover:border-gray-400 transition-all"
-                style={{ backgroundColor: c.value }}
-                title={c.label}
-              >
-                {c.emoji} {c.label}
-              </button>
-            ))}
-            <button
-              onClick={() => applyColor(null)}
-              className="px-3 py-1.5 rounded text-sm border border-gray-300 hover:border-gray-500 bg-white text-gray-600"
-            >
-              ⬜ 色を消す
-            </button>
-            {singleSelected && (
-              <a
-                href={singleSelected.webViewLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded text-sm text-blue-600 border border-blue-300 hover:bg-blue-50"
-              >
-                🔗 ドライブで開く
-              </a>
-            )}
-            <button
-              onClick={() => setSelected(new Set())}
-              className="ml-auto px-4 py-1.5 rounded text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-            >
-              ✕ 全選択解除
-            </button>
-          </div>
+      {/* 選択中の左サイドパネル（ぬるっとスライドイン） */}
+      <div
+        className={`fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 bg-white border border-gray-200 shadow-xl rounded-r-2xl px-3 py-4 transition-all duration-300 ease-in-out ${
+          selected.size > 0 ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0 pointer-events-none"
+        }`}
+        style={{ minWidth: "88px" }}
+      >
+        <div className="text-xs font-bold text-gray-500 text-center mb-1">
+          {selected.size}枚
         </div>
-      )}
+        {COLOR_TABS.map(c => (
+          <button
+            key={c.value}
+            onClick={() => applyColor(c.value)}
+            className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs border-2 border-transparent hover:border-gray-400 transition-all"
+            style={{ backgroundColor: c.value }}
+            title={c.label}
+          >
+            <span className="text-base">{c.emoji}</span>
+            <span>{c.label}</span>
+          </button>
+        ))}
+        <button
+          onClick={() => applyColor(null)}
+          className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs border border-gray-300 hover:border-gray-500 bg-white text-gray-600"
+        >
+          <span className="text-base">⬜</span>
+          <span>色を消す</span>
+        </button>
+        {singleSelected && (
+          <a
+            href={singleSelected.webViewLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs text-blue-600 border border-blue-200 hover:bg-blue-50"
+          >
+            <span className="text-base">🔗</span>
+            <span>開く</span>
+          </a>
+        )}
+        <div className="border-t border-gray-100 mt-1 pt-1">
+          <button
+            onClick={() => setSelected(new Set())}
+            className="w-full flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+          >
+            <span className="text-base">✕</span>
+            <span>解除</span>
+          </button>
+        </div>
+      </div>
 
     </div>
   );
