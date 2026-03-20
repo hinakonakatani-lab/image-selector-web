@@ -95,6 +95,11 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     setSaving(false);
   }, [selected, folderId]);
 
+  // 全画像をパス付きでフラット化（handleClearColorTabで使うため先に宣言）
+  const allImagesWithPath = folders.flatMap(folder =>
+    folder.images.map(image => ({ image, path: folder.path }))
+  );
+
   const handleClearColorTab = useCallback(async (color: string) => {
     const tab = COLOR_TABS.find(t => t.value === color);
     const count = allImagesWithPath.filter(({ image }) => colors[image.id] === color).length;
@@ -136,11 +141,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       body: JSON.stringify({ folderId, color, month: month || null }),
     });
   }, [monthInput, folderId]);
-
-  // 全画像をパス付きでフラット化
-  const allImagesWithPath = folders.flatMap(folder =>
-    folder.images.map(image => ({ image, path: folder.path }))
-  );
 
   const colorCounts = COLOR_TABS.reduce((acc, tab) => {
     acc[tab.value] = allImagesWithPath.filter(({ image }) => colors[image.id] === tab.value).length;
