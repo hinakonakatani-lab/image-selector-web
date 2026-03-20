@@ -7,7 +7,10 @@ const kv = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 });
 import ImageGrid from "@/app/components/ImageGrid";
+import FolderBookmarks from "@/app/components/FolderBookmarks";
 import type { DriveFolder } from "@/app/api/drive/route";
+
+type Bookmark = { id: string; name: string; folderId: string };
 
 type FolderCache = {
   folders: DriveFolder[];
@@ -105,6 +108,10 @@ export default async function Home({
     );
   }
 
+  // ブックマーク取得
+  const bookmarkKey = `bookmarks:${session.user?.email}`;
+  const bookmarks = (await kv.get<Bookmark[]>(bookmarkKey)) || [];
+
   // 画像・色データ取得
   let folders: DriveFolder[] = [];
   let colors: Record<string, string> = {};
@@ -172,6 +179,9 @@ export default async function Home({
       </header>
 
       <main className="max-w-screen-2xl mx-auto px-4 py-6">
+        {/* 保存済みフォルダ一覧 */}
+        <FolderBookmarks initialBookmarks={bookmarks} currentFolderId={folderId} />
+
         {/* フォルダID入力フォーム */}
         <form method="get" className="mb-4 flex gap-2">
           <input
