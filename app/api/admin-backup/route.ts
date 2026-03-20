@@ -12,7 +12,8 @@ async function scanAllKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
   let cursor: string | number = 0;
   do {
-    const [nextCursor, batch] = await kv.scan(cursor, { match: pattern, count: 100 });
+    const result: [string | number, string[]] = await kv.scan(cursor, { match: pattern, count: 100 });
+    const [nextCursor, batch] = result;
     keys.push(...batch);
     cursor = nextCursor;
   } while (cursor !== 0 && cursor !== "0");
