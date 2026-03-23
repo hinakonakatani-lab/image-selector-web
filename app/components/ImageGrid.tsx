@@ -101,15 +101,11 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     });
     setSelected(new Set());
 
-    await Promise.all(
-      ids.map(fileId =>
-        fetch("/api/colors", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folderId, fileId, color }),
-        })
-      )
-    );
+    await fetch("/api/colors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileIds: ids, color }),
+    });
     setSaving(false);
   }, [selected, folderId]);
 
@@ -167,15 +163,11 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       for (const id of ids) delete next[id];
       return next;
     });
-    await Promise.all(
-      ids.map(fileId =>
-        fetch("/api/colors", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folderId, fileId, color: null }),
-        })
-      )
-    );
+    await fetch("/api/colors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileIds: ids, color: null }),
+    });
     setSaving(false);
   }, [allImagesWithPath, colors, folderId]);
 
