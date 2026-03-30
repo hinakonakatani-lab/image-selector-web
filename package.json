@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@auth/core": "^0.41.0",
     "@upstash/redis": "^1.37.0",
     "googleapis": "^171.4.0",

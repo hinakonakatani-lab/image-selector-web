@@ -10,6 +10,7 @@ import ImageGrid from "@/app/components/ImageGrid";
 import FolderBookmarks from "@/app/components/FolderBookmarks";
 import ExportImport from "@/app/components/ExportImport";
 import ManualColorPicker from "@/app/components/ManualColorPicker";
+import ThemeAnalysis from "@/app/components/ThemeAnalysis";
 import type { DriveFolder } from "@/app/api/drive/route";
 
 type Bookmark = { id: string; name: string; folderId: string };
@@ -78,12 +79,13 @@ function formatCachedAt(cachedAt: number): string {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ folderId?: string; refresh?: string }>;
+  searchParams: Promise<{ folderId?: string; refresh?: string; tab?: string }>;
 }) {
   const session = await auth();
   const params = await searchParams;
   const folderId = params.folderId || "";
   const forceRefresh = params.refresh === "1";
+  const activeTab = params.tab === "theme" ? "theme" : "select";
 
   // 未ログイン or トークン更新失敗 → ログイン画面
   if (!session || session.error === "RefreshAccessTokenError") {
@@ -186,6 +188,32 @@ export default async function Home({
         {/* 保存済みフォルダ一覧 */}
         <FolderBookmarks initialBookmarks={bookmarks} currentFolderId={folderId} />
 
+        {/* タブ切り替え */}
+        {folderId && (
+          <div className="flex gap-1 mb-4 border-b">
+            <a
+              href={`?folderId=${folderId}&tab=select`}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+                activeTab === "select"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              🖼️ 画像選定
+            </a>
+            <a
+              href={`?folderId=${folderId}&tab=theme`}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+                activeTab === "theme"
+                  ? "border-purple-500 text-purple-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              🏷️ テーマ分析
+            </a>
+          </div>
+        )}
+
         {/* フォルダID入力フォーム */}
         <form method="get" className="mb-4 flex gap-2">
           <input
@@ -263,9 +291,14 @@ export default async function Home({
           </div>
         )}
 
-        {/* 画像グリッド */}
-        {folders.length > 0 && (
+        {/* 画像グリッド（画像選定タブ） */}
+        {folders.length > 0 && activeTab === "select" && (
           <ImageGrid key={folderId} folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} />
+        )}
+
+        {/* テーマ分析タブ */}
+        {activeTab === "theme" && (
+          <ThemeAnalysis folderId={folderId} folders={folders} />
         )}
 
         {/* 画像なし */}
