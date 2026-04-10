@@ -27,6 +27,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [monthInput, setMonthInput] = useState("");
@@ -108,6 +109,37 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     });
     setSaving(false);
   }, [selected, folderId]);
+
+  const handleOpenAllUrls = useCallback(() => {
+    for (const id of selected) {
+      const img = imageMap.current.get(id);
+      if (img) window.open(img.webViewLink, "_blank");
+    }
+  }, [selected]);
+
+  const handleBulkDownload = useCallback(async () => {
+    const ids = Array.from(selected);
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/drive/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: ids }),
+      });
+      if (!res.ok) throw new Error("失敗");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `images_${ids.length}枚.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("ダウンロードに失敗しました");
+    } finally {
+      setDownloading(false);
+    }
+  }, [selected]);
 
   const handleImport = useCallback(async () => {
     const importColors: Record<string, string> = {};
@@ -467,7 +499,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         >
           ⬜ 色を消す
         </button>
-        {singleSelected && (
+        {selected.size === 1 && singleSelected && (
           <a
             href={singleSelected.webViewLink}
             target="_blank"
@@ -477,6 +509,21 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
             🔗 開く
           </a>
         )}
+        {selected.size > 1 && (
+          <button
+            onClick={handleOpenAllUrls}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-blue-600 border border-blue-200 hover:bg-blue-50 text-left"
+          >
+            🔗 全て開く
+          </button>
+        )}
+        <button
+          onClick={handleBulkDownload}
+          disabled={downloading}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-green-700 border border-green-300 hover:bg-green-50 disabled:opacity-50"
+        >
+          {downloading ? "⏳ DL中..." : `📦 一括DL`}
+        </button>
         <div className="mt-auto pt-2 border-t border-gray-100">
           <button
             onClick={() => setSelected(new Set())}
