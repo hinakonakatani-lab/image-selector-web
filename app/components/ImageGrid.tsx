@@ -535,7 +535,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         <div className="mt-auto pt-2 border-t border-gray-100">
           <button
             onClick={() => setSelected(new Set())}
-            className="w-full px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 text-left"
+            className="w-full px-2 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-300 hover:text-gray-700 hover:bg-gray-100 text-left"
           >
             ✕ 全選択解除
           </button>
