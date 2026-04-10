@@ -525,7 +525,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
           disabled={downloading}
           className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-green-700 border border-green-300 hover:bg-green-50 disabled:opacity-50"
         >
-          {downloading ? "⏳ DL中..." : `📦 一括DL`}
+          {downloading ? "⏳ DL中..." : selected.size === 1 ? "📦 DL" : "📦 一括DL"}
         </button>
         <div className="mt-auto pt-2 border-t border-gray-100">
           <button
