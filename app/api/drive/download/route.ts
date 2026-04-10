@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   const zip = new JSZip();
 
-  for (const fileId of fileIds) {
+  await Promise.all(fileIds.map(async (fileId) => {
     // ファイル名を取得（共有ドライブ対応）
     const meta = await drive.files.get({
       fileId,
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     const data = res.data as ArrayBuffer | Buffer;
     zip.file(name, Buffer.isBuffer(data) ? data : Buffer.from(data));
-  }
+  }));
 
   const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
   const zipBlob = new Blob([zipBuffer], { type: "application/zip" });
