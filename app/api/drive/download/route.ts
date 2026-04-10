@@ -20,24 +20,29 @@ export async function POST(request: Request) {
   const zip = new JSZip();
 
   for (const fileId of fileIds) {
-    // ファイル名を取得
-    const meta = await drive.files.get({ fileId, fields: "name" });
+    // ファイル名を取得（共有ドライブ対応）
+    const meta = await drive.files.get({
+      fileId,
+      fields: "name",
+      supportsAllDrives: true,
+    });
     const name = meta.data.name || fileId;
 
-    // ファイル本体をダウンロード
+    // ファイル本体をダウンロード（共有ドライブ対応）
     const res = await drive.files.get(
-      { fileId, alt: "media" },
+      { fileId, alt: "media", supportsAllDrives: true },
       { responseType: "arraybuffer" }
     );
 
-    zip.file(name, res.data as ArrayBuffer);
+    const data = res.data as ArrayBuffer | Buffer;
+    zip.file(name, Buffer.isBuffer(data) ? data : Buffer.from(data));
   }
 
-  const zipBuffer = await zip.generateAsync({ type: "uint8array" });
+  const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
+  const zipBlob = new Blob([zipBuffer], { type: "application/zip" });
 
-  return new Response(zipBuffer.buffer as ArrayBuffer, {
+  return new Response(zipBlob, {
     headers: {
-      "Content-Type": "application/zip",
       "Content-Disposition": 'attachment; filename="images.zip"',
     },
   });
