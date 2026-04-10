@@ -113,7 +113,12 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const handleOpenAllUrls = useCallback(() => {
     for (const id of selected) {
       const img = imageMap.current.get(id);
-      if (img) window.open(img.webViewLink, "_blank");
+      if (!img) continue;
+      const win = window.open(img.webViewLink, "_blank");
+      if (!win) {
+        alert("ポップアップがブロックされています。\nブラウザのアドレスバーに表示される「ポップアップがブロックされました」をクリックして、このサイトを許可してください。");
+        return;
+      }
     }
   }, [selected]);
 
