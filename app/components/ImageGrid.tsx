@@ -121,19 +121,22 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     const ids = Array.from(selected);
     setDownloading(true);
     try {
-      const res = await fetch("/api/drive/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileIds: ids }),
-      });
-      if (!res.ok) throw new Error("失敗");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `images_${ids.length}枚.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
+      for (const fileId of ids) {
+        const res = await fetch("/api/drive/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileId }),
+        });
+        if (!res.ok) throw new Error("失敗");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const img = imageMap.current.get(fileId);
+        a.download = img?.name || fileId;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     } catch {
       alert("ダウンロードに失敗しました");
     } finally {
