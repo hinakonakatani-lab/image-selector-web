@@ -168,6 +168,21 @@ export default async function Home({
       <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
         <h1 className="text-lg font-bold">🖼️ 画像選定ツール</h1>
         <div className="flex items-center gap-3">
+          {folderId && cachedAt && (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <span>📦 キャッシュ表示中（最終更新: {formatCachedAt(cachedAt)}）</span>
+              <form method="get">
+                <input type="hidden" name="folderId" value={folderId} />
+                <input type="hidden" name="refresh" value="1" />
+                <button
+                  type="submit"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded border border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  🔄 再読み込み
+                </button>
+              </form>
+            </div>
+          )}
           <ExportImport />
           <ManualColorPicker folderId={folderId} />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
@@ -229,23 +244,6 @@ export default async function Home({
             読み込む
           </button>
         </form>
-
-        {/* キャッシュ情報 + 再読み込みボタン */}
-        {folderId && cachedAt && (
-          <div className="mb-4 flex items-center gap-2 text-xs text-gray-400">
-            <span>📦 キャッシュ表示中（最終更新: {formatCachedAt(cachedAt)}）</span>
-            <form method="get">
-              <input type="hidden" name="folderId" value={folderId} />
-              <input type="hidden" name="refresh" value="1" />
-              <button
-                type="submit"
-                className="flex items-center gap-1 px-2 py-0.5 rounded border border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
-              >
-                🔄 再読み込み
-              </button>
-            </form>
-          </div>
-        )}
 
         {/* 凡例 */}
         {folderId && (
