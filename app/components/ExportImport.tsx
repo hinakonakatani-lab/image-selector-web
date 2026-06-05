@@ -85,7 +85,7 @@ export default function ExportImport({ folderId }: { folderId?: string }) {
           className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
           title={`表示中のフォルダ（${folderId}）の色・月データをバックアップ`}
         >
-          💾 このフォルダをBK
+          💾 このフォルダをバックアップ
         </button>
       )}
       <label
