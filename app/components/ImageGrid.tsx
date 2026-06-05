@@ -616,9 +616,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
           transition: "transform 0.3s ease",
         }}
       >
-        <div className="text-xs font-bold text-gray-400 text-center mb-2 pb-2 border-b">
-          {selected.size}枚選択中
-        </div>
         {COLOR_TABS.map(c => (
           <button
             key={c.value}
@@ -661,7 +658,10 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         >
           {downloading ? "⏳ DL中..." : selected.size === 1 ? "📦 DL" : "📦 一括DL"}
         </button>
-        <div className="mt-auto pt-2 border-t border-gray-100">
+        <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1">
+          <div className="text-center py-1.5 rounded-lg bg-blue-500 text-white font-bold text-sm">
+            {selected.size}枚選択中
+          </div>
           <button
             onClick={() => setSelected(new Set())}
             className="w-full px-2 py-1.5 rounded-lg text-xs text-gray-500 border border-gray-300 hover:text-gray-700 hover:bg-gray-100 text-left"
