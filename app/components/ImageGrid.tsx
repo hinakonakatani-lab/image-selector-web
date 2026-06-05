@@ -37,8 +37,11 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [importText, setImportText] = useState("");
   const [importStatus, setImportStatus] = useState("");
   const [dragRect, setDragRect] = useState<DragRect | null>(null);
-  const dragStartRef = useRef<{ x: number; y: number; imageId: string | null } | null>(null);
+  // ページ座標（scrollY込み）で開始点を保持
+  const dragStartRef = useRef<{ pageX: number; pageY: number; imageId: string | null } | null>(null);
   const isDragSelectingRef = useRef(false);
+  const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const autoScrollRafRef = useRef<number | null>(null);
   const imageMap = useRef<Map<string, DriveImage>>(new Map());
 
   // 全画像のマップを構築（Drive URLアクセス用）
@@ -51,38 +54,95 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, [folders]);
 
-  // ラバーバンド選択のmousemove / mouseupをwindowで管理
+  // ラバーバンド選択のmousemove / mouseup / エッジスクロールをwindowで管理
   useEffect(() => {
+    const SCROLL_ZONE = 80;  // 画面端からこのpx以内でスクロール開始
+    const MAX_SPEED = 16;    // 最大スクロール速度(px/frame)
+
+    // ビューポート座標からドラッグ枠を更新（スクロール中のrAFからも呼ぶ）
+    const updateRect = (clientX: number, clientY: number) => {
+      if (!dragStartRef.current) return;
+      const startViewX = dragStartRef.current.pageX - window.scrollX;
+      const startViewY = dragStartRef.current.pageY - window.scrollY;
+      setDragRect({
+        x: Math.min(clientX, startViewX),
+        y: Math.min(clientY, startViewY),
+        w: Math.abs(clientX - startViewX),
+        h: Math.abs(clientY - startViewY),
+      });
+    };
+
+    const stopAutoScroll = () => {
+      if (autoScrollRafRef.current !== null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+    };
+
+    const startAutoScroll = () => {
+      if (autoScrollRafRef.current !== null) return;
+      const step = () => {
+        if (!isDragSelectingRef.current) { autoScrollRafRef.current = null; return; }
+        const y = lastMouseRef.current.y;
+        const distBottom = window.innerHeight - y;
+        const distTop = y;
+        let speed = 0;
+        if (distBottom < SCROLL_ZONE) speed = Math.ceil((1 - distBottom / SCROLL_ZONE) * MAX_SPEED);
+        else if (distTop < SCROLL_ZONE) speed = -Math.ceil((1 - distTop / SCROLL_ZONE) * MAX_SPEED);
+        if (speed !== 0) {
+          window.scrollBy(0, speed);
+          updateRect(lastMouseRef.current.x, lastMouseRef.current.y);
+        }
+        autoScrollRafRef.current = requestAnimationFrame(step);
+      };
+      autoScrollRafRef.current = requestAnimationFrame(step);
+    };
+
     const onMouseMove = (e: MouseEvent) => {
       if (!dragStartRef.current) return;
-      const dx = e.clientX - dragStartRef.current.x;
-      const dy = e.clientY - dragStartRef.current.y;
+      lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
+      const startPageX = dragStartRef.current.pageX;
+      const startPageY = dragStartRef.current.pageY;
+      const curPageX = e.clientX + window.scrollX;
+      const curPageY = e.clientY + window.scrollY;
+      const dx = curPageX - startPageX;
+      const dy = curPageY - startPageY;
       if (!isDragSelectingRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
         isDragSelectingRef.current = true;
       }
       if (isDragSelectingRef.current) {
-        setDragRect({
-          x: Math.min(e.clientX, dragStartRef.current.x),
-          y: Math.min(e.clientY, dragStartRef.current.y),
-          w: Math.abs(dx),
-          h: Math.abs(dy),
-        });
+        updateRect(e.clientX, e.clientY);
+        const distBottom = window.innerHeight - e.clientY;
+        const distTop = e.clientY;
+        if (distBottom < SCROLL_ZONE || distTop < SCROLL_ZONE) startAutoScroll();
+        else stopAutoScroll();
       }
     };
 
     const onMouseUp = (e: MouseEvent) => {
       if (!dragStartRef.current) return;
+      stopAutoScroll();
       const start = dragStartRef.current;
 
       if (isDragSelectingRef.current) {
-        const x = Math.min(e.clientX, start.x);
-        const y = Math.min(e.clientY, start.y);
-        const w = Math.abs(e.clientX - start.x);
-        const h = Math.abs(e.clientY - start.y);
+        // ページ座標で矩形を確定して判定
+        const startPageX = start.pageX;
+        const startPageY = start.pageY;
+        const endPageX = e.clientX + window.scrollX;
+        const endPageY = e.clientY + window.scrollY;
+        const rectX = Math.min(startPageX, endPageX);
+        const rectY = Math.min(startPageY, endPageY);
+        const rectW = Math.abs(endPageX - startPageX);
+        const rectH = Math.abs(endPageY - startPageY);
         const newIds: string[] = [];
         document.querySelectorAll("[data-image-id]").forEach(el => {
           const r = el.getBoundingClientRect();
-          if (r.left < x + w && r.right > x && r.top < y + h && r.bottom > y) {
+          const elL = r.left + window.scrollX;
+          const elR = r.right + window.scrollX;
+          const elT = r.top + window.scrollY;
+          const elB = r.bottom + window.scrollY;
+          if (elL < rectX + rectW && elR > rectX && elT < rectY + rectH && elB > rectY) {
             const id = el.getAttribute("data-image-id");
             if (id) newIds.push(id);
           }
@@ -111,6 +171,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      if (autoScrollRafRef.current !== null) cancelAnimationFrame(autoScrollRafRef.current);
     };
   }, []);
 
@@ -137,7 +198,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       if (el.dataset.imageId) { imageId = el.dataset.imageId; break; }
       el = el.parentElement;
     }
-    dragStartRef.current = { x: e.clientX, y: e.clientY, imageId };
+    dragStartRef.current = { pageX: e.clientX + window.scrollX, pageY: e.clientY + window.scrollY, imageId };
     isDragSelectingRef.current = false;
   }, []);
 
