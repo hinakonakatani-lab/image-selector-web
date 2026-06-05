@@ -81,8 +81,8 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
   };
 
   return (
-    <div className="mb-4">
-      <div className="flex flex-wrap gap-2 items-center">
+    <div className="mb-2">
+      <div className="flex flex-wrap gap-1.5 items-center">
         <span className="text-xs text-gray-400 font-medium shrink-0">📂 保存済み：</span>
 
         {bookmarks.map(b => (
@@ -93,7 +93,7 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
             onDragOver={e => handleDragOver(e, b.id)}
             onDrop={() => handleDrop(b.id)}
             onDragEnd={handleDragEnd}
-            className={`flex items-center gap-1 rounded-full px-2 py-1 text-sm border transition-all group cursor-grab active:cursor-grabbing select-none ${
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-all group cursor-grab active:cursor-grabbing select-none ${
               b.folderId === currentFolderId
                 ? "bg-blue-500 text-white border-blue-500"
                 : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600"
@@ -132,7 +132,7 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
         {currentFolderId && !adding && (
           <button
             onClick={() => { setAdding(true); setNameInput(""); }}
-            className="rounded-full px-3 py-1 text-sm border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+            className="rounded-full px-2 py-0.5 text-xs border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
           >
             ＋ このフォルダを保存
           </button>
@@ -149,18 +149,18 @@ export default function FolderBookmarks({ initialBookmarks, currentFolderId }: P
                 if (e.key === "Escape") setAdding(false);
               }}
               placeholder="例：〇〇会社"
-              className="border rounded-full px-3 py-1 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="border rounded-full px-2 py-0.5 text-xs w-32 focus:outline-none focus:ring-2 focus:ring-blue-400"
               autoFocus
             />
             <button
               onClick={handleAdd}
-              className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded-full"
+              className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full"
             >
               保存
             </button>
             <button
               onClick={() => setAdding(false)}
-              className="text-gray-400 hover:text-gray-600 text-sm px-2"
+              className="text-gray-400 hover:text-gray-600 text-xs px-1.5"
             >
               キャンセル
             </button>

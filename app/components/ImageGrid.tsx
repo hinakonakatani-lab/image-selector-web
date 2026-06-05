@@ -37,6 +37,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [importText, setImportText] = useState("");
   const [importStatus, setImportStatus] = useState("");
   const [dragRect, setDragRect] = useState<DragRect | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [zoomedImage, setZoomedImage] = useState<DriveImage | null>(null);
@@ -381,13 +382,21 @@ const handleMonthSave = useCallback(async (color: string) => {
     }))
     .filter(folder => folder.images.length > 0);
 
+  const lowerQuery = searchQuery.toLowerCase();
+  const filteredSortedFolders = searchQuery
+    ? sortedFolders.filter(f => f.path.toLowerCase().includes(lowerQuery))
+    : sortedFolders;
+  const filteredColorTabFolders = searchQuery
+    ? colorTabFolders.filter(f => f.path.toLowerCase().includes(lowerQuery))
+    : colorTabFolders;
+
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
 
   const singleSelected = selected.size === 1
     ? imageMap.current.get([...selected][0])
     : null;
 
-  const colorTabAllIds = colorTabFolders.flatMap(f => f.images.map(img => img.id));
+  const colorTabAllIds = filteredColorTabFolders.flatMap(f => f.images.map(img => img.id));
   const colorTabAllSelected = colorTabAllIds.length > 0 && colorTabAllIds.every(id => selected.has(id));
 
   const renderImage = (image: DriveImage, path?: string) => {
@@ -473,41 +482,64 @@ const handleMonthSave = useCallback(async (color: string) => {
         </div>
       )}
 
-      {/* タブ（スクロール追従） */}
-      <div className="flex flex-wrap gap-1 mb-0 border-b sticky top-[57px] z-20 bg-white py-1 -mx-4 px-4 shadow-sm">
-        <button
-          onClick={() => setActiveTab("all")}
-          className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "all"
-              ? "border-blue-500 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          全て（{allCount}）
-        </button>
-        {COLOR_TABS.map(tab => (
+      {/* タブ + 検索（スクロール追従） */}
+      <div className="sticky top-[57px] z-20 bg-white -mx-4 px-4 shadow-sm">
+        <div className="flex flex-wrap gap-1 border-b py-1">
           <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
+            onClick={() => setActiveTab("all")}
             className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.value
+              activeTab === "all"
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab.emoji} {tab.label}
-            {months[tab.value] && (
-              <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
-            )}
-            （{colorCounts[tab.value]}）
+            全て（{allCount}）
           </button>
-        ))}
-        <button
-          onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
-          className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
-        >
-          📥 インポート
-        </button>
+          {COLOR_TABS.map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.value
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.emoji} {tab.label}
+              {months[tab.value] && (
+                <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
+              )}
+              （{colorCounts[tab.value]}）
+            </button>
+          ))}
+          <button
+            onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
+            className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
+          >
+            📥 インポート
+          </button>
+        </div>
+        {/* 検索バー */}
+        <div className="flex items-center gap-2 py-1.5 border-b">
+          <span className="text-gray-400 text-sm shrink-0">🔍</span>
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="フォルダパスで絞り込み..."
+            className="flex-1 text-xs px-2 py-0.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+          {searchQuery && (
+            <>
+              <span className="text-xs text-gray-400 shrink-0">
+                {(activeTab === "all" ? filteredSortedFolders.length : filteredColorTabFolders.length)}フォルダ一致
+              </span>
+              <button
+                onClick={() => setSearchQuery("")}
+                className="text-xs text-gray-400 hover:text-gray-600 shrink-0 px-1"
+              >✕</button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* インポートパネル */}
@@ -544,7 +576,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       {/* 全てタブ */}
       {activeTab === "all" && (
         <>
-          {sortedFolders.map(folder => (
+          {filteredSortedFolders.map(folder => (
             <div key={folder.id} className="mb-8">
               <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                 📁 {folder.path}
@@ -565,8 +597,10 @@ const handleMonthSave = useCallback(async (color: string) => {
               </div>
             </div>
           ))}
-          {sortedFolders.length === 0 && (
-            <div className="text-center text-gray-400 py-10">画像がありません</div>
+          {filteredSortedFolders.length === 0 && (
+            <div className="text-center text-gray-400 py-10">
+              {searchQuery ? `「${searchQuery}」に一致するフォルダはありません` : "画像がありません"}
+            </div>
           )}
         </>
       )}
@@ -612,7 +646,7 @@ const handleMonthSave = useCallback(async (color: string) => {
                 {months[activeTab] ? `${months[activeTab]} ✏️` : "＋ 月を設定"}
               </button>
             )}
-            {colorTabImages.length > 0 && activeTab !== YELLOW && activeTab !== GRAY && (
+            {filteredColorTabFolders.length > 0 && activeTab !== YELLOW && activeTab !== GRAY && (
               <button
                 onClick={() => {
                   if (colorTabAllSelected) {
@@ -628,9 +662,9 @@ const handleMonthSave = useCallback(async (color: string) => {
             )}
           </div>
 
-          {colorTabFolders.length > 0 ? (
+          {filteredColorTabFolders.length > 0 ? (
             <>
-              {colorTabFolders.map(folder => (
+              {filteredColorTabFolders.map(folder => (
                 <div key={folder.id} className="mb-8">
                   <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                     📁 {folder.path}
@@ -654,7 +688,7 @@ const handleMonthSave = useCallback(async (color: string) => {
             </>
           ) : (
             <div className="text-center text-gray-400 py-10">
-              この色がついた画像はまだありません
+              {searchQuery ? `「${searchQuery}」に一致するフォルダはありません` : "この色がついた画像はまだありません"}
             </div>
           )}
         </>
