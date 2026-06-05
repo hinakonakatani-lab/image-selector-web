@@ -8,6 +8,7 @@ const kv = new Redis({
 });
 import ImageGrid from "@/app/components/ImageGrid";
 import FolderBookmarks from "@/app/components/FolderBookmarks";
+import FolderForm from "@/app/components/FolderForm";
 import ExportImport from "@/app/components/ExportImport";
 import ManualColorPicker from "@/app/components/ManualColorPicker";
 import ThemeAnalysis from "@/app/components/ThemeAnalysis";
@@ -230,20 +231,7 @@ export default async function Home({
         )}
 
         {/* フォルダID入力フォーム */}
-        <form method="get" className="mb-4 flex gap-2">
-          <input
-            name="folderId"
-            defaultValue={folderId}
-            placeholder="GoogleドライブのフォルダIDを入力（URLの末尾のランダムな文字列）"
-            className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <button
-            type="submit"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
-          >
-            読み込む
-          </button>
-        </form>
+        <FolderForm defaultValue={folderId} />
 
         {/* 凡例 */}
         {folderId && (
