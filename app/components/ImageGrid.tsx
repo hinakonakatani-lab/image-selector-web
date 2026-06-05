@@ -543,8 +543,13 @@ const handleMonthSave = useCallback(async (color: string) => {
         <>
           {sortedFolders.map(folder => (
             <div key={folder.id} className="mb-8">
-              <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
+              <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                 📁 {folder.path}
+                <button
+                  onClick={() => setSelected(prev => { const next = new Set(prev); folder.images.forEach(img => next.add(img.id)); return next; })}
+                  className="ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-300 transition-colors rounded px-1.5 py-0.5 text-xs font-normal"
+                  title="このフォルダを全選択"
+                >☑ 全選択</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
                 {folder.images.map(image => renderImage(image))}
@@ -615,8 +620,13 @@ const handleMonthSave = useCallback(async (color: string) => {
             <>
               {colorTabFolders.map(folder => (
                 <div key={folder.id} className="mb-8">
-                  <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
+                  <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                     📁 {folder.path}
+                    <button
+                      onClick={() => setSelected(prev => { const next = new Set(prev); folder.images.forEach(img => next.add(img.id)); return next; })}
+                      className="ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-300 transition-colors rounded px-1.5 py-0.5 text-xs font-normal"
+                      title="このフォルダを全選択"
+                    >☑ 全選択</button>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
                     {folder.images.map(image => renderImage(image))}
