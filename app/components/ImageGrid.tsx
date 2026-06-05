@@ -6,6 +6,8 @@ import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
 const YELLOW = "#ffe599";
 const GRAY = "#999999";
 
+type DragRect = { x: number; y: number; w: number; h: number };
+
 const COLOR_TABS = [
   { value: "#ea9999", label: "赤", emoji: "🟥" },
   { value: "#a4c2f4", label: "青", emoji: "🟦" },
@@ -34,7 +36,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importStatus, setImportStatus] = useState("");
-  const isDragging = useRef(false);
+  const [dragRect, setDragRect] = useState<DragRect | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number; imageId: string | null } | null>(null);
+  const isDragSelectingRef = useRef(false);
   const imageMap = useRef<Map<string, DriveImage>>(new Map());
 
   // 全画像のマップを構築（Drive URLアクセス用）
@@ -47,11 +51,67 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, [folders]);
 
-  // ドラッグ終了をwindowで検知
+  // ラバーバンド選択のmousemove / mouseupをwindowで管理
   useEffect(() => {
-    const onMouseUp = () => { isDragging.current = false; };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+      if (!isDragSelectingRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        isDragSelectingRef.current = true;
+      }
+      if (isDragSelectingRef.current) {
+        setDragRect({
+          x: Math.min(e.clientX, dragStartRef.current.x),
+          y: Math.min(e.clientY, dragStartRef.current.y),
+          w: Math.abs(dx),
+          h: Math.abs(dy),
+        });
+      }
+    };
+
+    const onMouseUp = (e: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const start = dragStartRef.current;
+
+      if (isDragSelectingRef.current) {
+        const x = Math.min(e.clientX, start.x);
+        const y = Math.min(e.clientY, start.y);
+        const w = Math.abs(e.clientX - start.x);
+        const h = Math.abs(e.clientY - start.y);
+        const newIds: string[] = [];
+        document.querySelectorAll("[data-image-id]").forEach(el => {
+          const r = el.getBoundingClientRect();
+          if (r.left < x + w && r.right > x && r.top < y + h && r.bottom > y) {
+            const id = el.getAttribute("data-image-id");
+            if (id) newIds.push(id);
+          }
+        });
+        setSelected(prev => {
+          const next = new Set(prev);
+          newIds.forEach(id => next.add(id));
+          return next;
+        });
+      } else if (start.imageId !== null) {
+        const id = start.imageId;
+        setSelected(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+        });
+      }
+
+      dragStartRef.current = null;
+      isDragSelectingRef.current = false;
+      setDragRect(null);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-    return () => window.removeEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
   }, []);
 
   // ManualColorPickerからの手動着色を即時反映
@@ -69,22 +129,16 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     return () => window.removeEventListener("manualColorApplied", onManualColor);
   }, []);
 
-  const handleMouseDown = useCallback((id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    isDragging.current = true;
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const handleMouseEnter = useCallback((id: string) => {
-    if (!isDragging.current) return;
-    setSelected(prev => {
-      if (prev.has(id)) return prev;
-      return new Set([...prev, id]);
-    });
+  const handleContainerMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, input, textarea, select")) return;
+    let el: HTMLElement | null = e.target as HTMLElement;
+    let imageId: string | null = null;
+    while (el && el !== e.currentTarget) {
+      if (el.dataset.imageId) { imageId = el.dataset.imageId; break; }
+      el = el.parentElement;
+    }
+    dragStartRef.current = { x: e.clientX, y: e.clientY, imageId };
+    isDragSelectingRef.current = false;
   }, []);
 
   const applyColor = useCallback(async (color: string | null) => {
@@ -263,6 +317,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     return (
       <div
         key={image.id}
+        data-image-id={image.id}
         className="relative cursor-pointer rounded overflow-hidden select-none"
         style={{
           outline: isSelected
@@ -270,8 +325,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
             : color ? `4px solid ${color}` : "none",
           backgroundColor: color || "#f0f0f0",
         }}
-        onMouseDown={e => handleMouseDown(image.id, e)}
-        onMouseEnter={() => handleMouseEnter(image.id)}
         title={image.name}
       >
         <div className="flex items-center justify-center bg-gray-100" style={{ height: "160px" }}>
@@ -319,7 +372,22 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const SIDEBAR_W = 112; // px
 
   return (
-    <div style={{ marginLeft: selected.size > 0 ? SIDEBAR_W : 0, transition: "margin-left 0.3s ease" }}>
+    <>
+    {/* ラバーバンド選択の矩形オーバーレイ */}
+    {dragRect && (
+      <div
+        className="fixed pointer-events-none z-50 border-2 border-blue-400 bg-blue-200/20"
+        style={{ left: dragRect.x, top: dragRect.y, width: dragRect.w, height: dragRect.h }}
+      />
+    )}
+    <div
+      onMouseDown={handleContainerMouseDown}
+      style={{
+        marginLeft: selected.size > 0 ? SIDEBAR_W : 0,
+        transition: "margin-left 0.3s ease",
+        userSelect: dragRect ? "none" : undefined,
+      }}
+    >
       {saving && (
         <div className="fixed top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded text-sm z-50">
           保存中...
@@ -543,5 +611,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       </div>
 
     </div>
+    </>
   );
 }
