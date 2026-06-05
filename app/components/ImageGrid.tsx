@@ -387,6 +387,9 @@ const handleMonthSave = useCallback(async (color: string) => {
     ? imageMap.current.get([...selected][0])
     : null;
 
+  const colorTabAllIds = colorTabFolders.flatMap(f => f.images.map(img => img.id));
+  const colorTabAllSelected = colorTabAllIds.length > 0 && colorTabAllIds.every(id => selected.has(id));
+
   const renderImage = (image: DriveImage, path?: string) => {
     const color = colors[image.id];
     const isSelected = selected.has(image.id);
@@ -546,10 +549,16 @@ const handleMonthSave = useCallback(async (color: string) => {
               <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                 📁 {folder.path}
                 <button
-                  onClick={() => setSelected(prev => { const next = new Set(prev); folder.images.forEach(img => next.add(img.id)); return next; })}
+                  onClick={() => setSelected(prev => {
+                    const next = new Set(prev);
+                    const allSel = folder.images.every(img => next.has(img.id));
+                    if (allSel) folder.images.forEach(img => next.delete(img.id));
+                    else folder.images.forEach(img => next.add(img.id));
+                    return next;
+                  })}
                   className="ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-300 transition-colors rounded px-1.5 py-0.5 text-xs font-normal"
-                  title="このフォルダを全選択"
-                >☑ 全選択</button>
+                  title="このフォルダを全選択/全解除"
+                >{folder.images.every(img => selected.has(img.id)) ? "☑ 全解除" : "☑ 全選択"}</button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
                 {folder.images.map(image => renderImage(image))}
@@ -606,12 +615,15 @@ const handleMonthSave = useCallback(async (color: string) => {
             {colorTabImages.length > 0 && activeTab !== YELLOW && activeTab !== GRAY && (
               <button
                 onClick={() => {
-                  const ids = colorTabFolders.flatMap(f => f.images.map(img => img.id));
-                  setSelected(new Set(ids));
+                  if (colorTabAllSelected) {
+                    setSelected(prev => { const next = new Set(prev); colorTabAllIds.forEach(id => next.delete(id)); return next; });
+                  } else {
+                    setSelected(prev => { const next = new Set(prev); colorTabAllIds.forEach(id => next.add(id)); return next; });
+                  }
                 }}
                 className="text-sm px-3 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors"
               >
-                ☑️ 全選択
+                {colorTabAllSelected ? "☑️ 全選択解除" : "☑️ 全選択"}
               </button>
             )}
           </div>
@@ -623,10 +635,16 @@ const handleMonthSave = useCallback(async (color: string) => {
                   <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                     📁 {folder.path}
                     <button
-                      onClick={() => setSelected(prev => { const next = new Set(prev); folder.images.forEach(img => next.add(img.id)); return next; })}
+                      onClick={() => setSelected(prev => {
+                        const next = new Set(prev);
+                        const allSel = folder.images.every(img => next.has(img.id));
+                        if (allSel) folder.images.forEach(img => next.delete(img.id));
+                        else folder.images.forEach(img => next.add(img.id));
+                        return next;
+                      })}
                       className="ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-300 transition-colors rounded px-1.5 py-0.5 text-xs font-normal"
-                      title="このフォルダを全選択"
-                    >☑ 全選択</button>
+                      title="このフォルダを全選択/全解除"
+                    >{folder.images.every(img => selected.has(img.id)) ? "☑ 全解除" : "☑ 全選択"}</button>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
                     {folder.images.map(image => renderImage(image))}
