@@ -366,6 +366,13 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     ? allImagesWithPath.filter(({ image }) => colors[image.id] === activeTab)
     : [];
 
+  const colorTabFolders = folders
+    .map(folder => ({
+      ...folder,
+      images: folder.images.filter(img => colors[img.id] === activeTab),
+    }))
+    .filter(folder => folder.images.length > 0);
+
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
 
   const singleSelected = selected.size === 1
@@ -595,10 +602,19 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
             )}
           </div>
 
-          {colorTabImages.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-              {colorTabImages.map(({ image, path }) => renderImage(image, path))}
-            </div>
+          {colorTabFolders.length > 0 ? (
+            <>
+              {colorTabFolders.map(folder => (
+                <div key={folder.id} className="mb-8">
+                  <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
+                    📁 {folder.path}
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                    {folder.images.map(image => renderImage(image))}
+                  </div>
+                </div>
+              ))}
+            </>
           ) : (
             <div className="text-center text-gray-400 py-10">
               この色がついた画像はまだありません
