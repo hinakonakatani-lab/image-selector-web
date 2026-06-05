@@ -382,12 +382,16 @@ const handleMonthSave = useCallback(async (color: string) => {
     }))
     .filter(folder => folder.images.length > 0);
 
-  const lowerQuery = searchQuery.toLowerCase();
-  const filteredSortedFolders = searchQuery
-    ? sortedFolders.filter(f => f.path.toLowerCase().includes(lowerQuery))
+  const searchTerms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matchesSearch = (path: string) => {
+    const lower = path.toLowerCase();
+    return searchTerms.every(term => lower.includes(term));
+  };
+  const filteredSortedFolders = searchTerms.length > 0
+    ? sortedFolders.filter(f => matchesSearch(f.path))
     : sortedFolders;
-  const filteredColorTabFolders = searchQuery
-    ? colorTabFolders.filter(f => f.path.toLowerCase().includes(lowerQuery))
+  const filteredColorTabFolders = searchTerms.length > 0
+    ? colorTabFolders.filter(f => matchesSearch(f.path))
     : colorTabFolders;
 
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
