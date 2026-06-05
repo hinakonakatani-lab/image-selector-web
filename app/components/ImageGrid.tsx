@@ -38,6 +38,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [importStatus, setImportStatus] = useState("");
   const [dragRect, setDragRect] = useState<DragRect | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [zoomedImage, setZoomedImage] = useState<DriveImage | null>(null);
   const [cropPositions, setCropPositions] = useState<Record<string, { portrait: {x:number,y:number}; square: {x:number,y:number} }>>({});
   const cropDragRef = useRef<{ id:string; type:'portrait'|'square'; startX:number; startY:number; startPosX:number; startPosY:number } | null>(null);
@@ -332,27 +333,30 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     folder.images.map(image => ({ image, path: folder.path }))
   );
 
-  const handleClearColorTab = useCallback(async (color: string) => {
+  const handleClearColorTab = useCallback((color: string) => {
     const tab = COLOR_TABS.find(t => t.value === color);
     const count = allImagesWithPath.filter(({ image }) => colors[image.id] === color).length;
-    if (!window.confirm(`${tab?.emoji}${tab?.label} の画像 ${count}枚 の色を全て消します。\nよろしいですか？`)) return;
+    setConfirmDialog({
+      message: `${tab?.emoji}${tab?.label} の画像 ${count}枚 の色を全て消します。よろしいですか？`,
+      onConfirm: async () => {
+        const ids = allImagesWithPath
+          .filter(({ image }) => colors[image.id] === color)
+          .map(({ image }) => image.id);
 
-    const ids = allImagesWithPath
-      .filter(({ image }) => colors[image.id] === color)
-      .map(({ image }) => image.id);
-
-    setSaving(true);
-    setColors(prev => {
-      const next = { ...prev };
-      for (const id of ids) delete next[id];
-      return next;
+        setSaving(true);
+        setColors(prev => {
+          const next = { ...prev };
+          for (const id of ids) delete next[id];
+          return next;
+        });
+        await fetch("/api/colors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folderId, fileIds: ids, color: null }),
+        });
+        setSaving(false);
+      },
     });
-    await fetch("/api/colors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folderId, fileIds: ids, color: null }),
-    });
-    setSaving(false);
   }, [allImagesWithPath, colors, folderId]);
 
   const handleMonthSave = useCallback(async (color: string) => {
@@ -627,7 +631,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
                   const ids = colorTabFolders.flatMap(f => f.images.map(img => img.id));
                   setSelected(new Set(ids));
                 }}
-                className="ml-auto text-sm px-3 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                className="text-sm px-3 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors"
               >
                 ☑️ 全選択
               </button>
@@ -635,7 +639,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
             {colorTabImages.length > 0 && (
               <button
                 onClick={() => handleClearColorTab(activeTab)}
-                className="text-sm px-3 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
+                className="ml-auto text-sm px-3 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
               >
                 🗑️ この色を全て消す
               </button>
@@ -684,7 +688,10 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
           </button>
         ))}
         <button
-          onClick={() => applyColor(null)}
+          onClick={() => setConfirmDialog({
+            message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
+            onConfirm: () => applyColor(null),
+          })}
           className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
         >
           ⬜ 色を消す
@@ -815,6 +822,25 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
                 </div>
               );
             })}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 確認ダイアログ */}
+    {confirmDialog && (
+      <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+          <p className="text-sm text-gray-700 mb-6 leading-relaxed">{confirmDialog.message}</p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setConfirmDialog(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >キャンセル</button>
+            <button
+              onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
+              className="px-4 py-2 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600"
+            >削除する</button>
           </div>
         </div>
       </div>
