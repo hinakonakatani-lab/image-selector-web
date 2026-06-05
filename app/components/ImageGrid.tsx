@@ -682,19 +682,19 @@ const handleMonthSave = useCallback(async (color: string) => {
           </button>
         )}
         <button
-          onClick={handleBulkDownload}
-          disabled={downloading}
-          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-green-700 border border-green-300 hover:bg-green-50 disabled:opacity-50"
-        >
-          {downloading ? "⏳ DL中..." : selected.size === 1 ? "📦 DL" : "📦 一括DL"}
-        </button>
-        <button
           onClick={() => setShowPreview(true)}
           className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-purple-700 border border-purple-300 hover:bg-purple-50"
         >
           🔍 クロップ確認
         </button>
         <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1">
+          <button
+            onClick={handleBulkDownload}
+            disabled={downloading}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-green-700 border border-green-300 hover:bg-green-50 disabled:opacity-50"
+          >
+            {downloading ? "⏳ DL中..." : selected.size === 1 ? "📦 DL" : "📦 一括DL"}
+          </button>
           <div className="text-center py-1.5 rounded-lg bg-blue-500 text-white font-bold text-sm">
             {selected.size}枚選択中
           </div>
