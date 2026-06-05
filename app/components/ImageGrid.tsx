@@ -37,6 +37,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [importText, setImportText] = useState("");
   const [importStatus, setImportStatus] = useState("");
   const [dragRect, setDragRect] = useState<DragRect | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   // ページ座標（scrollY込み）で開始点を保持
   const dragStartRef = useRef<{ pageX: number; pageY: number; imageId: string | null } | null>(null);
   const isDragSelectingRef = useRef(false);
@@ -674,6 +675,12 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         >
           {downloading ? "⏳ DL中..." : selected.size === 1 ? "📦 DL" : "📦 一括DL"}
         </button>
+        <button
+          onClick={() => setShowPreview(true)}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-purple-700 border border-purple-300 hover:bg-purple-50"
+        >
+          🔍 クロップ確認
+        </button>
         <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1">
           <div className="text-center py-1.5 rounded-lg bg-blue-500 text-white font-bold text-sm">
             {selected.size}枚選択中
@@ -688,6 +695,58 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       </div>
 
     </div>
+
+    {/* クロップ確認ポップアップ */}
+    {showPreview && (
+      <div
+        className="fixed inset-0 bg-black/70 z-50 overflow-y-auto py-8 px-4"
+        onClick={e => { if (e.target === e.currentTarget) setShowPreview(false); }}
+      >
+        <div className="bg-white rounded-xl w-full max-w-3xl mx-auto p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-bold text-base text-gray-800">{selected.size}枚のクロップ確認</h2>
+            <button
+              onClick={() => setShowPreview(false)}
+              className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+            >×</button>
+          </div>
+          <div className="flex flex-col gap-8">
+            {Array.from(selected).map(id => {
+              const img = imageMap.current.get(id);
+              if (!img) return null;
+              return (
+                <div key={id} className="border border-gray-200 rounded-lg p-4">
+                  <p className="text-xs text-gray-500 mb-3 truncate" title={img.name}>📄 {img.name}</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* オリジナル */}
+                    <div>
+                      <p className="text-xs text-center text-gray-500 mb-1 font-medium">オリジナル</p>
+                      <div className="bg-gray-100 rounded overflow-hidden flex items-center justify-center" style={{ minHeight: 120 }}>
+                        <img src={img.thumbnailUrl} alt={img.name} className="w-full object-contain max-h-60" draggable={false} />
+                      </div>
+                    </div>
+                    {/* 4:5 縦 */}
+                    <div>
+                      <p className="text-xs text-center text-gray-500 mb-1 font-medium">4:5（縦）</p>
+                      <div className="bg-gray-100 rounded overflow-hidden w-full" style={{ aspectRatio: "4/5" }}>
+                        <img src={img.thumbnailUrl} alt={img.name} className="w-full h-full object-cover" draggable={false} />
+                      </div>
+                    </div>
+                    {/* 1:1 スクエア */}
+                    <div>
+                      <p className="text-xs text-center text-gray-500 mb-1 font-medium">1:1（スクエア）</p>
+                      <div className="bg-gray-100 rounded overflow-hidden w-full" style={{ aspectRatio: "1/1" }}>
+                        <img src={img.thumbnailUrl} alt={img.name} className="w-full h-full object-cover" draggable={false} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
