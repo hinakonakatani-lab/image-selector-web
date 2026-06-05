@@ -333,33 +333,8 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     folder.images.map(image => ({ image, path: folder.path }))
   );
 
-  const handleClearColorTab = useCallback((color: string) => {
-    const tab = COLOR_TABS.find(t => t.value === color);
-    const count = allImagesWithPath.filter(({ image }) => colors[image.id] === color).length;
-    setConfirmDialog({
-      message: `${tab?.emoji}${tab?.label} の画像 ${count}枚 の色を全て消します。よろしいですか？`,
-      onConfirm: async () => {
-        const ids = allImagesWithPath
-          .filter(({ image }) => colors[image.id] === color)
-          .map(({ image }) => image.id);
 
-        setSaving(true);
-        setColors(prev => {
-          const next = { ...prev };
-          for (const id of ids) delete next[id];
-          return next;
-        });
-        await fetch("/api/colors", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folderId, fileIds: ids, color: null }),
-        });
-        setSaving(false);
-      },
-    });
-  }, [allImagesWithPath, colors, folderId]);
-
-  const handleMonthSave = useCallback(async (color: string) => {
+const handleMonthSave = useCallback(async (color: string) => {
     const month = monthInput.trim();
     setMonths(prev => {
       const next = { ...prev };
@@ -634,14 +609,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
                 className="text-sm px-3 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors"
               >
                 ☑️ 全選択
-              </button>
-            )}
-            {colorTabImages.length > 0 && (
-              <button
-                onClick={() => handleClearColorTab(activeTab)}
-                className="ml-auto text-sm px-3 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
-              >
-                🗑️ この色を全て消す
               </button>
             )}
           </div>
