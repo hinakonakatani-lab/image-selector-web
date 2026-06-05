@@ -78,13 +78,6 @@ export default function ExportImport() {
       >
         📦 全データBK(管理者用)
       </button>
-      <button
-        onClick={handleExport}
-        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
-        title="自分のブックマーク分をJSONでバックアップ"
-      >
-        💾 バックアップ
-      </button>
       <label
         className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
         title="バックアップファイルから復元"
