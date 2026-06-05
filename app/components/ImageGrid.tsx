@@ -646,7 +646,16 @@ const handleMonthSave = useCallback(async (color: string) => {
         {COLOR_TABS.map(c => (
           <button
             key={c.value}
-            onClick={() => applyColor(c.value)}
+            onClick={() => {
+              if (c.value === GRAY) {
+                setConfirmDialog({
+                  message: `選択中の ${selected.size}枚 をグレー（NG）にします。よろしいですか？`,
+                  onConfirm: () => applyColor(c.value),
+                });
+              } else {
+                applyColor(c.value);
+              }
+            }}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:opacity-80 transition-all font-medium"
             style={{ backgroundColor: c.value }}
             title={c.label}
