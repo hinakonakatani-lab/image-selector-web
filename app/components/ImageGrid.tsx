@@ -593,10 +593,21 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
                 {months[activeTab] ? `${months[activeTab]} ✏️` : "＋ 月を設定"}
               </button>
             )}
+            {colorTabImages.length > 0 && activeTab !== YELLOW && activeTab !== GRAY && (
+              <button
+                onClick={() => {
+                  const ids = colorTabFolders.flatMap(f => f.images.map(img => img.id));
+                  setSelected(new Set(ids));
+                }}
+                className="ml-auto text-sm px-3 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors"
+              >
+                ☑️ 全選択
+              </button>
+            )}
             {colorTabImages.length > 0 && (
               <button
                 onClick={() => handleClearColorTab(activeTab)}
-                className="ml-2 text-sm px-3 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
+                className="text-sm px-3 py-1 rounded border border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400 transition-colors"
               >
                 🗑️ この色を全て消す
               </button>
