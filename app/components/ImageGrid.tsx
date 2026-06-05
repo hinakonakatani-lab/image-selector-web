@@ -470,47 +470,8 @@ const handleMonthSave = useCallback(async (color: string) => {
         </div>
       )}
 
-      {/* インポートボタン */}
-      <div className="flex justify-end mb-2">
-        <button
-          onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
-          className="text-sm px-3 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-600"
-        >
-          📥 色データをインポート
-        </button>
-      </div>
-
-      {/* インポートパネル */}
-      {showImport && (
-        <div className="mb-4 p-4 bg-gray-50 border rounded-lg">
-          <p className="text-sm text-gray-600 mb-2 font-medium">スプレッドシートの色データを貼り付けてください：</p>
-          <p className="text-xs text-gray-400 mb-2">形式：ファイルID（スペース）#カラーコード　を1行ずつ</p>
-          <textarea
-            value={importText}
-            onChange={e => setImportText(e.target.value)}
-            placeholder={"1ADLOYQQid9SwlI...    #a4c2f4\n1WiQaPmGXJ9TEq...    #ea9999"}
-            className="w-full h-40 border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              onClick={handleImport}
-              className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded"
-            >
-              インポート実行
-            </button>
-            <button
-              onClick={() => { setShowImport(false); setImportText(""); setImportStatus(""); }}
-              className="text-gray-400 hover:text-gray-600 text-sm px-3 py-1.5"
-            >
-              キャンセル
-            </button>
-            {importStatus && <span className="text-sm text-gray-600">{importStatus}</span>}
-          </div>
-        </div>
-      )}
-
       {/* タブ（スクロール追従） */}
-      <div className="flex flex-wrap gap-1 mb-4 border-b sticky top-[57px] z-20 bg-white py-1 -mx-4 px-4 shadow-sm">
+      <div className="flex flex-wrap gap-1 mb-0 border-b sticky top-[57px] z-20 bg-white py-1 -mx-4 px-4 shadow-sm">
         <button
           onClick={() => setActiveTab("all")}
           className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -538,7 +499,44 @@ const handleMonthSave = useCallback(async (color: string) => {
             （{colorCounts[tab.value]}）
           </button>
         ))}
+        <button
+          onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
+          className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
+        >
+          📥 インポート
+        </button>
       </div>
+
+      {/* インポートパネル */}
+      {showImport && (
+        <div className="mb-4 mt-2 p-4 bg-gray-50 border rounded-lg">
+          <p className="text-sm text-gray-600 mb-2 font-medium">スプレッドシートの色データを貼り付けてください：</p>
+          <p className="text-xs text-gray-400 mb-2">形式：ファイルID（スペース）#カラーコード　を1行ずつ</p>
+          <textarea
+            value={importText}
+            onChange={e => setImportText(e.target.value)}
+            placeholder={"1ADLOYQQid9SwlI...    #a4c2f4\n1WiQaPmGXJ9TEq...    #ea9999"}
+            className="w-full h-40 border rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={handleImport}
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-1.5 rounded"
+            >
+              インポート実行
+            </button>
+            <button
+              onClick={() => { setShowImport(false); setImportText(""); setImportStatus(""); }}
+              className="text-gray-400 hover:text-gray-600 text-sm px-3 py-1.5"
+            >
+              キャンセル
+            </button>
+            {importStatus && <span className="text-sm text-gray-600">{importStatus}</span>}
+          </div>
+        </div>
+      )}
+
+      <div className="mb-4" />
 
       {/* 全てタブ */}
       {activeTab === "all" && (
