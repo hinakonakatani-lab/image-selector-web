@@ -9,7 +9,7 @@ const kv = new Redis({
 
 type Bookmark = { id: string; name: string; folderId: string };
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
