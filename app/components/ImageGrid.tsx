@@ -846,22 +846,34 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       </div>
     )}
 
-    {/* オリジナル画像の拡大表示 */}
+    {/* オリジナル画像の拡大表示（Driveプレビュー埋め込み） */}
     {zoomedImage && (
       <div
-        className="fixed inset-0 bg-black/85 z-[60] flex items-center justify-center p-6 cursor-zoom-out"
-        onClick={() => setZoomedImage(null)}
+        className="fixed inset-0 bg-black/85 z-[60] flex flex-col items-center justify-center p-6"
+        onClick={e => { if (e.target === e.currentTarget) setZoomedImage(null); }}
       >
-        <img
-          src={zoomedImage.thumbnailUrl}
-          alt={zoomedImage.name}
-          className="max-w-full max-h-full object-contain rounded shadow-2xl pointer-events-none"
-          draggable={false}
-        />
-        <button
-          className="absolute top-4 right-4 text-white text-3xl leading-none hover:text-gray-300"
-          onClick={() => setZoomedImage(null)}
-        >×</button>
+        <div className="relative w-full max-w-4xl" style={{ height: "80vh" }}>
+          <iframe
+            src={`https://drive.google.com/file/d/${zoomedImage.id}/preview`}
+            className="w-full h-full rounded-lg shadow-2xl bg-white"
+            allow="autoplay"
+            title={zoomedImage.name}
+          />
+        </div>
+        <div className="flex items-center gap-4 mt-3">
+          <span className="text-white text-sm opacity-70 truncate max-w-xs">{zoomedImage.name}</span>
+          <a
+            href={zoomedImage.webViewLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white text-xs border border-white/40 rounded px-3 py-1 hover:bg-white/20"
+            onClick={e => e.stopPropagation()}
+          >🔗 ドライブで開く</a>
+          <button
+            className="text-white text-xs border border-white/40 rounded px-3 py-1 hover:bg-white/20"
+            onClick={() => setZoomedImage(null)}
+          >✕ 閉じる</button>
+        </div>
       </div>
     )}
     </>
