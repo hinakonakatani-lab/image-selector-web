@@ -184,7 +184,7 @@ export default async function Home({
               </form>
             </div>
           )}
-          <ExportImport />
+          <ExportImport folderId={folderId || undefined} />
           <ManualColorPicker folderId={folderId} />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
           <form

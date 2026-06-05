@@ -2,23 +2,24 @@
 
 import { useRef, useState } from "react";
 
-export default function ExportImport() {
+export default function ExportImport({ folderId }: { folderId?: string }) {
   const [status, setStatus] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleExport = async () => {
-    setStatus("エクスポート中...");
-    const res = await fetch("/api/export");
+    if (!folderId) return;
+    setStatus("バックアップ中...");
+    const res = await fetch(`/api/export?folderId=${folderId}`);
     const data = await res.json();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const date = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `image-selector-backup-${date}.json`;
+    a.download = `backup-${folderId}-${date}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus("✅ エクスポート完了");
+    setStatus("✅ バックアップ完了");
     setTimeout(() => setStatus(""), 3000);
   };
 
@@ -78,6 +79,15 @@ export default function ExportImport() {
       >
         📦 全データBK(管理者用)
       </button>
+      {folderId && (
+        <button
+          onClick={handleExport}
+          className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+          title="表示中のドライブIDの色・月データをバックアップ"
+        >
+          💾 バックアップ
+        </button>
+      )}
       <label
         className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
         title="バックアップファイルから復元"
