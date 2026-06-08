@@ -44,6 +44,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [lastRandomIds, setLastRandomIds] = useState<Set<string>>(new Set());
   const [randomViewMode, setRandomViewMode] = useState<"flat" | "folder">("flat");
   const [cropPositions, setCropPositions] = useState<Record<string, { portrait: {x:number,y:number}; square: {x:number,y:number} }>>({});
+  const [headerHeight, setHeaderHeight] = useState(57);
   const cropDragRef = useRef<{ id:string; type:'portrait'|'square'; startX:number; startY:number; startPosX:number; startPosY:number } | null>(null);
   // ページ座標（scrollY込み）で開始点を保持
   const dragStartRef = useRef<{ pageX: number; pageY: number; imageId: string | null } | null>(null);
@@ -51,6 +52,18 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const autoScrollRafRef = useRef<number | null>(null);
   const imageMap = useRef<Map<string, DriveImage>>(new Map());
+
+  // メインヘッダーの実際の高さを監視（画面幅でヘッダーが折り返すと変わるため）
+  useEffect(() => {
+    const header = document.querySelector("header");
+    if (!header) return;
+    const observer = new ResizeObserver(entries => {
+      setHeaderHeight(entries[0].contentRect.height);
+    });
+    observer.observe(header);
+    setHeaderHeight(header.getBoundingClientRect().height);
+    return () => observer.disconnect();
+  }, []);
 
   // 全画像のマップを構築（Drive URLアクセス用）
   useEffect(() => {
@@ -553,7 +566,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       )}
 
       {/* タブ + 検索（スクロール追従） */}
-      <div className="sticky top-[57px] z-20 bg-white -mx-4 px-4 shadow-sm">
+      <div className="sticky z-20 bg-white -mx-4 px-4 shadow-sm" style={{ top: headerHeight }}>
         <div className="flex flex-wrap gap-1 border-b py-1">
           <button
             onClick={() => setActiveTab("all")}
@@ -852,8 +865,9 @@ const handleMonthSave = useCallback(async (color: string) => {
 
       {/* 選択中の左サイドバー */}
       <div
-        className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
+        className="fixed left-0 bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
         style={{
+          top: headerHeight,
           width: SIDEBAR_W,
           transform: selected.size > 0 ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.3s ease",
