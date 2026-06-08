@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
 
 const YELLOW = "#ffe599";
@@ -53,15 +53,16 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const autoScrollRafRef = useRef<number | null>(null);
   const imageMap = useRef<Map<string, DriveImage>>(new Map());
 
-  // メインヘッダーの実際の高さを監視（画面幅でヘッダーが折り返すと変わるため）
-  // getBoundingClientRect を使うことでpadding・borderを含む正確な高さを取得
-  useEffect(() => {
+  // useLayoutEffect でペイント前に同期計測 → ユーザーが誤位置を見ることがない
+  useLayoutEffect(() => {
     const header = document.querySelector("header");
     if (!header) return;
     const update = () => setHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    // ペイント前に即時計測
+    update();
+    // 画面幅変化（ヘッダー折り返し等）にも追随
     const observer = new ResizeObserver(update);
     observer.observe(header);
-    update();
     return () => observer.disconnect();
   }, []);
 
