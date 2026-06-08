@@ -41,6 +41,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [showPreview, setShowPreview] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [zoomedImage, setZoomedImage] = useState<DriveImage | null>(null);
+  const [lastRandomIds, setLastRandomIds] = useState<Set<string>>(new Set());
   const [cropPositions, setCropPositions] = useState<Record<string, { portrait: {x:number,y:number}; square: {x:number,y:number} }>>({});
   const cropDragRef = useRef<{ id:string; type:'portrait'|'square'; startX:number; startY:number; startPosX:number; startPosY:number } | null>(null);
   // ページ座標（scrollY込み）で開始点を保持
@@ -329,6 +330,69 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, [importText, folderId]);
 
+  const handleRandomSelect = useCallback(() => {
+    // 未着色画像をフォルダごとに収集
+    const byFolder = new Map<string, { image: DriveImage; path: string }[]>();
+    for (const folder of folders) {
+      for (const image of folder.images) {
+        if (!colors[image.id]) {
+          if (!byFolder.has(folder.path)) byFolder.set(folder.path, []);
+          byFolder.get(folder.path)!.push({ image, path: folder.path });
+        }
+      }
+    }
+    const uncolored = Array.from(byFolder.values()).flat();
+    if (uncolored.length === 0) return;
+
+    // 前回選定を除外（残りが50枚未満なら全体から選ぶ）
+    const afterExclusion = uncolored.filter(({ image }) => !lastRandomIds.has(image.id));
+    const pool = afterExclusion.length >= 50 ? afterExclusion : uncolored;
+    const target = Math.min(50, pool.length);
+
+    // フォルダ別に再グループ化
+    const poolByFolder = new Map<string, { image: DriveImage; path: string }[]>();
+    for (const item of pool) {
+      if (!poolByFolder.has(item.path)) poolByFolder.set(item.path, []);
+      poolByFolder.get(item.path)!.push(item);
+    }
+
+    // Fisher-Yates シャッフル
+    for (const [, images] of poolByFolder) {
+      for (let i = images.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [images[i], images[j]] = [images[j], images[i]];
+      }
+    }
+
+    // フォルダ比率に応じた層化抽出（クラスタリング防止）
+    const total = pool.length;
+    const folderKeys = Array.from(poolByFolder.keys());
+    const allocations = folderKeys.map(key => ({
+      key,
+      alloc: Math.floor((poolByFolder.get(key)!.length / total) * target),
+    }));
+    let allocated = allocations.reduce((s, a) => s + a.alloc, 0);
+    // 端数を小数部が大きい順に割り当て
+    folderKeys
+      .map((key, i) => ({ i, frac: (poolByFolder.get(key)!.length / total) * target - allocations[i].alloc }))
+      .sort((a, b) => b.frac - a.frac)
+      .slice(0, target - allocated)
+      .forEach(({ i }) => { allocations[i].alloc++; });
+
+    const result: string[] = [];
+    for (const { key, alloc } of allocations) {
+      const images = poolByFolder.get(key)!;
+      for (let i = 0; i < Math.min(alloc, images.length); i++) {
+        result.push(images[i].image.id);
+      }
+    }
+
+    const newIds = new Set(result);
+    setLastRandomIds(newIds);
+    setSelected(newIds);
+    setActiveTab("random");
+  }, [folders, colors, lastRandomIds]);
+
   // 全画像をパス付きでフラット化（handleClearColorTabで使うため先に宣言）
   const allImagesWithPath = folders.flatMap(folder =>
     folder.images.map(image => ({ image, path: folder.path }))
@@ -395,6 +459,7 @@ const handleMonthSave = useCallback(async (color: string) => {
     : colorTabFolders;
 
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
+  const uncoloredCount = allImagesWithPath.filter(({ image }) => !colors[image.id]).length;
 
   const singleSelected = selected.size === 1
     ? imageMap.current.get([...selected][0])
@@ -475,7 +540,7 @@ const handleMonthSave = useCallback(async (color: string) => {
     <div
       onMouseDown={handleContainerMouseDown}
       style={{
-        marginLeft: selected.size > 0 ? SIDEBAR_W : 0,
+        marginLeft: selected.size > 0 && activeTab !== "random" ? SIDEBAR_W : 0,
         transition: "margin-left 0.3s ease",
         userSelect: dragRect ? "none" : undefined,
       }}
@@ -498,6 +563,19 @@ const handleMonthSave = useCallback(async (color: string) => {
             }`}
           >
             全て（{allCount}）
+          </button>
+          <button
+            onClick={() => setActiveTab("random")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "random"
+                ? "border-orange-500 text-orange-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            🎲 ランダム選定
+            {lastRandomIds.size > 0 && (
+              <span className="ml-1 text-xs font-normal text-orange-500">（{lastRandomIds.size}枚）</span>
+            )}
           </button>
           {COLOR_TABS.map(tab => (
             <button
@@ -580,6 +658,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       {/* 全てタブ */}
       {activeTab === "all" && (
         <>
+
           {filteredSortedFolders.map(folder => (
             <div key={folder.id} className="mb-8">
               <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
@@ -609,8 +688,47 @@ const handleMonthSave = useCallback(async (color: string) => {
         </>
       )}
 
+      {/* ランダム選定タブ */}
+      {activeTab === "random" && (
+        <div>
+          <div className="flex items-center gap-3 mb-6">
+            <button
+              onClick={handleRandomSelect}
+              disabled={uncoloredCount === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+            >
+              🎲 ランダムで選定（50枚）
+            </button>
+            <span className="text-xs text-gray-500">
+              未着色: {uncoloredCount}枚
+              {lastRandomIds.size > 0 && (
+                <span className="ml-1 text-gray-400">（前回の{lastRandomIds.size}枚を除外して再選定）</span>
+              )}
+            </span>
+          </div>
+
+          {lastRandomIds.size > 0 ? (
+            <>
+              <div className="text-xs text-gray-400 mb-3">
+                各画像の色付けは「全て」タブなど他のタブから行ってください
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                {allImagesWithPath
+                  .filter(({ image }) => lastRandomIds.has(image.id))
+                  .map(({ image, path }) => renderImage(image, path))}
+              </div>
+            </>
+          ) : (
+            <div className="text-center text-gray-400 py-20">
+              <p className="text-4xl mb-4">🎲</p>
+              <p>「ランダムで選定」ボタンを押すと、未着色の画像から50枚がここに表示されます</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 色別タブ */}
-      {activeTab !== "all" && (
+      {activeTab !== "all" && activeTab !== "random" && (
         <>
           {/* 月設定 + 一括削除 */}
           <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -703,7 +821,7 @@ const handleMonthSave = useCallback(async (color: string) => {
         className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
         style={{
           width: SIDEBAR_W,
-          transform: selected.size > 0 ? "translateX(0)" : "translateX(-100%)",
+          transform: selected.size > 0 && activeTab !== "random" ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.3s ease",
         }}
       >
