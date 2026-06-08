@@ -42,6 +42,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [zoomedImage, setZoomedImage] = useState<DriveImage | null>(null);
   const [lastRandomIds, setLastRandomIds] = useState<Set<string>>(new Set());
+  const [randomViewMode, setRandomViewMode] = useState<"flat" | "folder">("flat");
   const [cropPositions, setCropPositions] = useState<Record<string, { portrait: {x:number,y:number}; square: {x:number,y:number} }>>({});
   const cropDragRef = useRef<{ id:string; type:'portrait'|'square'; startX:number; startY:number; startPosX:number; startPosY:number } | null>(null);
   // ページ座標（scrollY込み）で開始点を保持
@@ -389,7 +390,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
 
     const newIds = new Set(result);
     setLastRandomIds(newIds);
-    setSelected(newIds);
+    setSelected(new Set());
     setActiveTab("random");
   }, [folders, colors, lastRandomIds]);
 
@@ -691,7 +692,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       {/* ランダム選定タブ */}
       {activeTab === "random" && (
         <div>
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
             <button
               onClick={handleRandomSelect}
               disabled={uncoloredCount === 0}
@@ -705,6 +706,22 @@ const handleMonthSave = useCallback(async (color: string) => {
                 <span className="ml-1 text-gray-400">（前回の{lastRandomIds.size}枚を除外して再選定）</span>
               )}
             </span>
+            {lastRandomIds.size > 0 && (
+              <div className="ml-auto flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs">
+                <button
+                  onClick={() => setRandomViewMode("flat")}
+                  className={`px-3 py-1.5 transition-colors ${randomViewMode === "flat" ? "bg-gray-700 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                >
+                  ☰ 一覧
+                </button>
+                <button
+                  onClick={() => setRandomViewMode("folder")}
+                  className={`px-3 py-1.5 transition-colors ${randomViewMode === "folder" ? "bg-gray-700 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                >
+                  📁 フォルダ別
+                </button>
+              </div>
+            )}
           </div>
 
           {lastRandomIds.size > 0 ? (
@@ -712,11 +729,31 @@ const handleMonthSave = useCallback(async (color: string) => {
               <div className="text-xs text-gray-400 mb-3">
                 各画像の色付けは「全て」タブなど他のタブから行ってください
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
-                {allImagesWithPath
-                  .filter(({ image }) => lastRandomIds.has(image.id))
-                  .map(({ image, path }) => renderImage(image, path))}
-              </div>
+              {randomViewMode === "flat" ? (
+                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                  {allImagesWithPath
+                    .filter(({ image }) => lastRandomIds.has(image.id))
+                    .map(({ image, path }) => renderImage(image, path))}
+                </div>
+              ) : (
+                folders
+                  .map(folder => ({
+                    ...folder,
+                    images: folder.images.filter(img => lastRandomIds.has(img.id)),
+                  }))
+                  .filter(folder => folder.images.length > 0)
+                  .map(folder => (
+                    <div key={folder.id} className="mb-8">
+                      <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
+                        📁 {folder.path}
+                        <span className="ml-2 font-normal text-gray-500">（{folder.images.length}枚）</span>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                        {folder.images.map(image => renderImage(image))}
+                      </div>
+                    </div>
+                  ))
+              )}
             </>
           ) : (
             <div className="text-center text-gray-400 py-20">
