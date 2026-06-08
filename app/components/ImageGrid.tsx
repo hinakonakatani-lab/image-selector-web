@@ -54,14 +54,14 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const imageMap = useRef<Map<string, DriveImage>>(new Map());
 
   // メインヘッダーの実際の高さを監視（画面幅でヘッダーが折り返すと変わるため）
+  // getBoundingClientRect を使うことでpadding・borderを含む正確な高さを取得
   useEffect(() => {
     const header = document.querySelector("header");
     if (!header) return;
-    const observer = new ResizeObserver(entries => {
-      setHeaderHeight(entries[0].contentRect.height);
-    });
+    const update = () => setHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    const observer = new ResizeObserver(update);
     observer.observe(header);
-    setHeaderHeight(header.getBoundingClientRect().height);
+    update();
     return () => observer.disconnect();
   }, []);
 
