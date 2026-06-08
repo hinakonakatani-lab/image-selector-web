@@ -541,7 +541,7 @@ const handleMonthSave = useCallback(async (color: string) => {
     <div
       onMouseDown={handleContainerMouseDown}
       style={{
-        marginLeft: selected.size > 0 && activeTab !== "random" ? SIDEBAR_W : 0,
+        marginLeft: selected.size > 0 ? SIDEBAR_W : 0,
         transition: "margin-left 0.3s ease",
         userSelect: dragRect ? "none" : undefined,
       }}
@@ -726,9 +726,6 @@ const handleMonthSave = useCallback(async (color: string) => {
 
           {lastRandomIds.size > 0 ? (
             <>
-              <div className="text-xs text-gray-400 mb-3">
-                各画像の色付けは「全て」タブなど他のタブから行ってください
-              </div>
               {randomViewMode === "flat" ? (
                 <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
                   {allImagesWithPath
@@ -858,7 +855,7 @@ const handleMonthSave = useCallback(async (color: string) => {
         className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
         style={{
           width: SIDEBAR_W,
-          transform: selected.size > 0 && activeTab !== "random" ? "translateX(0)" : "translateX(-100%)",
+          transform: selected.size > 0 ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.3s ease",
         }}
       >
