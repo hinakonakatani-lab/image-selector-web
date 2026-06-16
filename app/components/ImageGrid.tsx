@@ -7,6 +7,7 @@ const YELLOW = "#ffe599";
 const GRAY = "#999999";
 
 type DragRect = { x: number; y: number; w: number; h: number };
+type MemoEntry = { text: string; authorName: string; updatedAt: string };
 
 const COLOR_TABS = [
   { value: "#ea9999", label: "赤", emoji: "🟥" },
@@ -22,9 +23,11 @@ type Props = {
   folderId: string;
   initialColors: Record<string, string>;
   initialMonths: Record<string, string>;
+  initialMemos: Record<string, MemoEntry>;
+  userName: string;
 };
 
-export default function ImageGrid({ folders, folderId, initialColors, initialMonths }: Props) {
+export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, userName }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -44,6 +47,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [lastRandomIds, setLastRandomIds] = useState<Set<string>>(new Set());
   const [randomViewMode, setRandomViewMode] = useState<"flat" | "folder">("flat");
   const [cropPositions, setCropPositions] = useState<Record<string, { portrait: {x:number,y:number}; square: {x:number,y:number} }>>({});
+  const [memos, setMemos] = useState<Record<string, MemoEntry>>(initialMemos);
+  const [memoModal, setMemoModal] = useState<string | null>(null);
+  const [memoEditText, setMemoEditText] = useState("");
   const [headerHeight, setHeaderHeight] = useState(57);
   const cropDragRef = useRef<{ id:string; type:'portrait'|'square'; startX:number; startY:number; startPosX:number; startPosY:number } | null>(null);
   // ページ座標（scrollY込み）で開始点を保持
@@ -429,6 +435,52 @@ const handleMonthSave = useCallback(async (color: string) => {
     });
   }, [monthInput, folderId]);
 
+  const openMemoModal = useCallback((imageId: string) => {
+    setMemoModal(imageId);
+    setMemoEditText(memos[imageId]?.text || "");
+  }, [memos]);
+
+  const saveMemo = useCallback(async () => {
+    if (!memoModal) return;
+    const text = memoEditText.trim();
+    const imageId = memoModal;
+    setMemos(prev => {
+      const next = { ...prev };
+      if (!text) delete next[imageId];
+      else next[imageId] = { text, authorName: userName, updatedAt: new Date().toISOString() };
+      return next;
+    });
+    setMemoModal(null);
+    await fetch("/api/memos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileId: imageId, text: text || null }),
+    });
+  }, [memoModal, memoEditText, folderId, userName]);
+
+  const deleteMemo = useCallback(async () => {
+    if (!memoModal) return;
+    const imageId = memoModal;
+    setMemos(prev => { const next = { ...prev }; delete next[imageId]; return next; });
+    setMemoModal(null);
+    await fetch("/api/memos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileId: imageId, text: null }),
+    });
+  }, [memoModal, folderId]);
+
+  const handleBulkDeleteMemos = useCallback(async () => {
+    const ids = Array.from(selected).filter(id => memos[id]);
+    if (ids.length === 0) return;
+    setMemos(prev => { const next = { ...prev }; ids.forEach(id => delete next[id]); return next; });
+    await fetch("/api/memos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileIds: ids, text: null }),
+    });
+  }, [selected, memos, folderId]);
+
   const colorCounts = COLOR_TABS.reduce((acc, tab) => {
     acc[tab.value] = allImagesWithPath.filter(({ image }) => colors[image.id] === tab.value).length;
     return acc;
@@ -480,17 +532,20 @@ const handleMonthSave = useCallback(async (color: string) => {
     ? imageMap.current.get([...selected][0])
     : null;
 
+  const selectedWithMemos = Array.from(selected).filter(id => memos[id]).length;
+
   const colorTabAllIds = filteredColorTabFolders.flatMap(f => f.images.map(img => img.id));
   const colorTabAllSelected = colorTabAllIds.length > 0 && colorTabAllIds.every(id => selected.has(id));
 
   const renderImage = (image: DriveImage, path?: string) => {
     const color = colors[image.id];
     const isSelected = selected.has(image.id);
+    const memo = memos[image.id];
     return (
       <div
         key={image.id}
         data-image-id={image.id}
-        className="relative cursor-pointer rounded overflow-hidden select-none"
+        className="relative cursor-pointer rounded overflow-hidden select-none group"
         style={{
           outline: isSelected
             ? "3px solid #3b82f6"
@@ -499,7 +554,7 @@ const handleMonthSave = useCallback(async (color: string) => {
         }}
         title={image.name}
       >
-        <div className="flex items-center justify-center bg-gray-100" style={{ height: "160px" }}>
+        <div className="relative flex items-center justify-center bg-gray-100" style={{ height: "160px" }}>
           <img
             src={image.thumbnailUrl}
             alt={image.name}
@@ -518,24 +573,37 @@ const handleMonthSave = useCallback(async (color: string) => {
               }
             }}
           />
-        </div>
-        {/* 選択オーバーレイ */}
-        {isSelected && (
-          <div className="absolute inset-0 bg-blue-500/20 flex items-start justify-end p-1">
-            <div className="bg-blue-500 rounded-full w-5 h-5 flex items-center justify-center">
-              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+          {/* 選択オーバーレイ */}
+          {isSelected && (
+            <div className="absolute inset-0 bg-blue-500/20 flex items-start justify-end p-1">
+              <div className="bg-blue-500 rounded-full w-5 h-5 flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          {/* カラーバー */}
+          {color && !isSelected && (
+            <div className="absolute bottom-0 left-0 right-0 h-1.5" style={{ backgroundColor: color }} />
+          )}
+        </div>
+        {/* メモ */}
+        <button
+          className={`w-full text-left text-xs px-1 py-0.5 truncate transition-colors ${
+            memo
+              ? "bg-yellow-50 text-gray-700 hover:bg-yellow-100"
+              : "text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-gray-50"
+          }`}
+          onClick={() => openMemoModal(image.id)}
+          title={memo?.text}
+        >
+          {memo ? `📝 ${memo.text}` : "＋ メモ"}
+        </button>
         {path && (
           <div className="text-xs text-gray-600 px-1 py-0.5 bg-white truncate" title={path}>
             📁 {path}
           </div>
-        )}
-        {color && !isSelected && (
-          <div className="absolute bottom-0 left-0 right-0 h-1.5" style={{ backgroundColor: color }} />
         )}
       </div>
     );
@@ -903,6 +971,22 @@ const handleMonthSave = useCallback(async (color: string) => {
         >
           ⬜ 色を消す
         </button>
+        {selected.size === 1 && (
+          <button
+            onClick={() => openMemoModal([...selected][0])}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-yellow-700 border border-yellow-300 hover:bg-yellow-50"
+          >
+            📝 {memos[[...selected][0]] ? "メモ編集" : "メモ追加"}
+          </button>
+        )}
+        {selectedWithMemos > 0 && selected.size > 1 && (
+          <button
+            onClick={handleBulkDeleteMemos}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-yellow-700 border border-yellow-300 hover:bg-yellow-50"
+          >
+            📝 メモ削除（{selectedWithMemos}件）
+          </button>
+        )}
         {selected.size === 1 && singleSelected && (
           <a
             href={singleSelected.webViewLink}
@@ -1032,6 +1116,65 @@ const handleMonthSave = useCallback(async (color: string) => {
               );
             })}
           </div>
+        </div>
+      </div>
+    )}
+
+    {/* メモモーダル */}
+    {memoModal && (
+      <div
+        className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4"
+        onClick={e => { if (e.target === e.currentTarget) setMemoModal(null); }}
+      >
+        <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+          <h3 className="font-bold text-sm mb-1">📝 メモ</h3>
+          {imageMap.current.get(memoModal) && (
+            <p className="text-xs text-gray-400 mb-3 truncate" title={imageMap.current.get(memoModal)!.name}>
+              {imageMap.current.get(memoModal)!.name}
+            </p>
+          )}
+          {memos[memoModal] && (
+            <p className="text-xs text-gray-400 mb-2">
+              最終更新: {memos[memoModal].authorName} · {new Date(memos[memoModal].updatedAt).toLocaleDateString("ja-JP")}
+            </p>
+          )}
+          <textarea
+            value={memoEditText}
+            onChange={e => setMemoEditText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveMemo();
+              if (e.key === "Escape") setMemoModal(null);
+            }}
+            placeholder="メモを入力..."
+            className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+            rows={4}
+            autoFocus
+          />
+          <div className="flex items-center gap-2 mt-4">
+            {memos[memoModal] && (
+              <button
+                onClick={deleteMemo}
+                className="px-3 py-1.5 text-sm text-red-500 border border-red-200 rounded hover:bg-red-50"
+              >
+                削除
+              </button>
+            )}
+            <div className="ml-auto flex gap-2">
+              <button
+                onClick={() => setMemoModal(null)}
+                className="px-3 py-1.5 text-sm text-gray-500 border border-gray-200 rounded hover:bg-gray-50"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={saveMemo}
+                className="px-4 py-1.5 text-sm text-white bg-yellow-500 hover:bg-yellow-600 rounded font-medium"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2 text-right">⌘/Ctrl+Enter で保存</p>
         </div>
       </div>
     )}

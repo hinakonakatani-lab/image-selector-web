@@ -15,6 +15,7 @@ import ThemeAnalysis from "@/app/components/ThemeAnalysis";
 import type { DriveFolder } from "@/app/api/drive/route";
 
 type Bookmark = { id: string; name: string; folderId: string };
+type MemoEntry = { text: string; authorName: string; updatedAt: string };
 
 type FolderCache = {
   folders: DriveFolder[];
@@ -121,6 +122,7 @@ export default async function Home({
   let folders: DriveFolder[] = [];
   let colors: Record<string, string> = {};
   let months: Record<string, string> = {};
+  let memos: Record<string, MemoEntry> = {};
   let cachedAt: number | null = null;
   let error = "";
 
@@ -158,6 +160,9 @@ export default async function Home({
 
       const monthKey = `months:shared:${folderId}`;
       months = (await kv.get<Record<string, string>>(monthKey)) || {};
+
+      const memoKey = `memos:shared:${folderId}`;
+      memos = (await kv.get<Record<string, MemoEntry>>(memoKey)) || {};
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : "エラーが発生しました";
     }
@@ -257,7 +262,7 @@ export default async function Home({
 
         {/* 画像グリッド（画像選定タブ） */}
         {folders.length > 0 && activeTab === "select" && (
-          <ImageGrid key={folderId} folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} />
+          <ImageGrid key={folderId} folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} initialMemos={memos} userName={session.user?.name || session.user?.email || ""} />
         )}
 
         {/* テーマ分析タブ */}
