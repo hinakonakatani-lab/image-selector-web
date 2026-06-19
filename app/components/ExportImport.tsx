@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-export default function ExportImport({ folderId }: { folderId?: string }) {
+export default function ExportImport({ folderId, isAdmin }: { folderId?: string; isAdmin?: boolean }) {
   const [status, setStatus] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -72,13 +72,15 @@ export default function ExportImport({ folderId }: { folderId?: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={handleAdminBackup}
-        className="text-xs px-2 py-1 rounded border border-orange-300 text-orange-500 hover:border-orange-400 hover:text-orange-700 transition-colors"
-        title="登録済み全ドライブIDの色・月データを丸ごとバックアップ（管理者用）"
-      >
-        📦 全データBK(管理者用)
-      </button>
+      {isAdmin && (
+        <button
+          onClick={handleAdminBackup}
+          className="text-xs px-2 py-1 rounded border border-orange-300 text-orange-500 hover:border-orange-400 hover:text-orange-700 transition-colors"
+          title="登録済み全ドライブIDの色・月データを丸ごとバックアップ（管理者用）"
+        >
+          📦 全データBK(管理者用)
+        </button>
+      )}
       {folderId && (
         <button
           onClick={handleExport}

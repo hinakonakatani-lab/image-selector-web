@@ -88,6 +88,8 @@ export default async function Home({
   const folderId = params.folderId || "";
   const forceRefresh = params.refresh === "1";
   const activeTab = params.tab === "theme" ? "theme" : "select";
+  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+  const isAdmin = adminEmails.includes(session?.user?.email || "");
 
   // 未ログイン or トークン更新失敗 → ログイン画面
   if (!session || session.error === "RefreshAccessTokenError") {
@@ -189,7 +191,7 @@ export default async function Home({
               </form>
             </div>
           )}
-          <ExportImport folderId={folderId || undefined} />
+          <ExportImport folderId={folderId || undefined} isAdmin={isAdmin} />
           <ManualColorPicker folderId={folderId} />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
           <form
