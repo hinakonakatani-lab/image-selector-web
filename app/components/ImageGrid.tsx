@@ -981,7 +981,7 @@ const handleMonthSave = useCallback(async (color: string) => {
         )}
         {selectedWithMemos > 0 && selected.size > 1 && (
           <button
-            onClick={handleBulkDeleteMemos}
+            onClick={() => setConfirmDialog({ message: `選択中の ${selectedWithMemos}件 のメモを削除します。よろしいですか？`, onConfirm: handleBulkDeleteMemos })}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-yellow-700 border border-yellow-300 hover:bg-yellow-50"
           >
             📝 メモ削除（{selectedWithMemos}件）
@@ -1153,7 +1153,7 @@ const handleMonthSave = useCallback(async (color: string) => {
           <div className="flex items-center gap-2 mt-4">
             {memos[memoModal] && (
               <button
-                onClick={deleteMemo}
+                onClick={() => setConfirmDialog({ message: "このメモを削除しますか？", onConfirm: deleteMemo })}
                 className="px-3 py-1.5 text-sm text-red-500 border border-red-200 rounded hover:bg-red-50"
               >
                 削除
