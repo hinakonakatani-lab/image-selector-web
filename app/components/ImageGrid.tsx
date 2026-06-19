@@ -46,6 +46,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [zoomedImage, setZoomedImage] = useState<DriveImage | null>(null);
   const [lastRandomIds, setLastRandomIds] = useState<Set<string>>(new Set());
   const [randomViewMode, setRandomViewMode] = useState<"flat" | "folder">("flat");
+  const [colorViewMode, setColorViewMode] = useState<"flat" | "folder">("folder");
   const [cropPositions, setCropPositions] = useState<Record<string, { portrait: {x:number,y:number}; square: {x:number,y:number} }>>({});
   const [memos, setMemos] = useState<Record<string, MemoEntry>>(initialMemos);
   const [memoModal, setMemoModal] = useState<string | null>(null);
@@ -898,31 +899,55 @@ const handleMonthSave = useCallback(async (color: string) => {
                 {colorTabAllSelected ? "☑️ 全選択解除" : "☑️ 全選択"}
               </button>
             )}
+            {filteredColorTabFolders.length > 0 && activeTab !== GRAY && (
+              <div className="ml-auto flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs">
+                <button
+                  onClick={() => setColorViewMode("flat")}
+                  className={`px-3 py-1.5 transition-colors ${colorViewMode === "flat" ? "bg-gray-700 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                >
+                  ☰ 一覧
+                </button>
+                <button
+                  onClick={() => setColorViewMode("folder")}
+                  className={`px-3 py-1.5 transition-colors ${colorViewMode === "folder" ? "bg-gray-700 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                >
+                  📁 フォルダ別
+                </button>
+              </div>
+            )}
           </div>
 
           {filteredColorTabFolders.length > 0 ? (
             <>
-              {filteredColorTabFolders.map(folder => (
-                <div key={folder.id} className="mb-8">
-                  <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
-                    📁 {folder.path}
-                    <button
-                      onClick={() => setSelected(prev => {
-                        const next = new Set(prev);
-                        const allSel = folder.images.every(img => next.has(img.id));
-                        if (allSel) folder.images.forEach(img => next.delete(img.id));
-                        else folder.images.forEach(img => next.add(img.id));
-                        return next;
-                      })}
-                      className="ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-300 transition-colors rounded px-1.5 py-0.5 text-xs font-normal"
-                      title="このフォルダを全選択/全解除"
-                    >{folder.images.every(img => selected.has(img.id)) ? "☑ 全解除" : "☑ 全選択"}</button>
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
-                    {folder.images.map(image => renderImage(image))}
-                  </div>
+              {colorViewMode === "flat" && activeTab !== GRAY ? (
+                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                  {filteredColorTabFolders.flatMap(folder =>
+                    folder.images.map(image => renderImage(image))
+                  )}
                 </div>
-              ))}
+              ) : (
+                filteredColorTabFolders.map(folder => (
+                  <div key={folder.id} className="mb-8">
+                    <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
+                      📁 {folder.path}
+                      <button
+                        onClick={() => setSelected(prev => {
+                          const next = new Set(prev);
+                          const allSel = folder.images.every(img => next.has(img.id));
+                          if (allSel) folder.images.forEach(img => next.delete(img.id));
+                          else folder.images.forEach(img => next.add(img.id));
+                          return next;
+                        })}
+                        className="ml-auto text-gray-400 hover:text-gray-700 hover:bg-gray-300 transition-colors rounded px-1.5 py-0.5 text-xs font-normal"
+                        title="このフォルダを全選択/全解除"
+                      >{folder.images.every(img => selected.has(img.id)) ? "☑ 全解除" : "☑ 全選択"}</button>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+                      {folder.images.map(image => renderImage(image))}
+                    </div>
+                  </div>
+                ))
+              )}
             </>
           ) : (
             <div className="text-center text-gray-400 py-10">
