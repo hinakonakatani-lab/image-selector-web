@@ -88,8 +88,7 @@ export default async function Home({
   const folderId = params.folderId || "";
   const forceRefresh = params.refresh === "1";
   const activeTab = params.tab === "theme" ? "theme" : "select";
-  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
-  const isAdmin = adminEmails.includes((session?.user?.email || "").toLowerCase());
+  const isAdmin = (session?.user?.email || "").toLowerCase() === "hinako.nakatani@shintairiku.jp";
 
   // 未ログイン or トークン更新失敗 → ログイン画面
   if (!session || session.error === "RefreshAccessTokenError") {
