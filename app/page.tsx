@@ -193,8 +193,6 @@ export default async function Home({
           <ExportImport folderId={folderId || undefined} isAdmin={isAdmin} />
           <ManualColorPicker folderId={folderId} />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
-          {/* DEBUG: 確認後に削除 */}
-          <span className="text-xs text-red-400">isAdmin:{String(isAdmin)} / email:{session.user?.email}</span>
           <form
             action={async () => {
               "use server";
