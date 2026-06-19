@@ -25,7 +25,8 @@ export async function GET() {
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
   }
-  if (session.user.email.toLowerCase() !== "hinako.nakatani@shintairiku.jp") {
+  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
+  if (!adminEmails.includes(session.user.email.toLowerCase())) {
     return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
