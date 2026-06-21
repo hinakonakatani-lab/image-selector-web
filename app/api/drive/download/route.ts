@@ -20,10 +20,11 @@ export async function POST(request: Request) {
     // ファイル名を取得（共有ドライブ対応）
     const meta = await drive.files.get({
       fileId,
-      fields: "name",
+      fields: "name,mimeType",
       supportsAllDrives: true,
     });
     const name = meta.data.name || fileId;
+    const mimeType = meta.data.mimeType || "application/octet-stream";
 
     // ファイル本体をダウンロード（共有ドライブ対応）
     const res = await drive.files.get(
@@ -32,10 +33,10 @@ export async function POST(request: Request) {
     );
 
     const data = res.data as ArrayBuffer;
-    const blob = new Blob([data]);
 
-    return new Response(blob, {
+    return new Response(data, {
       headers: {
+        "Content-Type": mimeType,
         "Content-Disposition": `attachment; filename="${encodeURIComponent(name)}"`,
       },
     });
