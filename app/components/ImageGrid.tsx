@@ -1079,7 +1079,7 @@ const handleMonthSave = useCallback(async (color: string) => {
               const squarePos   = cropPositions[id]?.square   ?? { x: 50, y: 50 };
               return (
                 <div key={id} className="border border-gray-200 rounded-lg p-4">
-                  {/* ファイル名 + ドライブリンク */}
+                  {/* ファイル名 + ドライブリンク + DL */}
                   <div className="flex items-center gap-2 mb-3 min-w-0">
                     <span className="text-xs text-gray-500 truncate" title={img.name}>📄 {img.name}</span>
                     <a
@@ -1088,6 +1088,28 @@ const handleMonthSave = useCallback(async (color: string) => {
                       rel="noopener noreferrer"
                       className="shrink-0 text-xs text-blue-500 hover:underline"
                     >🔗 ドライブで開く</a>
+                    <button
+                      className="shrink-0 text-xs text-blue-500 hover:underline"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch("/api/drive/download", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ fileId: img.id }),
+                          });
+                          if (!res.ok) throw new Error("失敗");
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = img.name;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch {
+                          alert("ダウンロードに失敗しました");
+                        }
+                      }}
+                    >📦 DL</button>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {/* オリジナル（虫眼鏡で拡大） */}
