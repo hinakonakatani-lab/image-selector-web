@@ -1248,6 +1248,31 @@ const handleMonthSave = useCallback(async (color: string) => {
           >🔗 ドライブで開く</a>
           <button
             className="text-white text-xs border border-white/40 rounded px-3 py-1 hover:bg-white/20"
+            onClick={async e => {
+              e.stopPropagation();
+              const fileId = zoomedImage.id;
+              const name = zoomedImage.name;
+              try {
+                const res = await fetch("/api/drive/download", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ fileId }),
+                });
+                if (!res.ok) throw new Error("失敗");
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = name;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch {
+                alert("ダウンロードに失敗しました");
+              }
+            }}
+          >📦 DL</button>
+          <button
+            className="text-white text-xs border border-white/40 rounded px-3 py-1 hover:bg-white/20"
             onClick={() => setZoomedImage(null)}
           >✕ 閉じる</button>
         </div>
