@@ -1111,21 +1111,26 @@ const handleMonthSave = useCallback(async (color: string) => {
                       }}
                     >📦 DL</button>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {/* オリジナル（虫眼鏡で拡大） */}
-                    <div>
-                      <p className="text-xs text-center text-gray-500 mb-1 font-medium">オリジナル</p>
-                      <div
-                        className="relative group bg-gray-100 rounded overflow-hidden flex items-center justify-center cursor-zoom-in"
-                        style={{ minHeight: 120 }}
-                        onClick={() => setZoomedImage(img)}
-                      >
-                        <img src={img.thumbnailUrl} alt={img.name} className="w-full object-contain max-h-60 pointer-events-none" draggable={false} />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                          <span className="text-white text-3xl drop-shadow">🔍</span>
-                        </div>
+                  {/* オリジナル（全幅表示） */}
+                  <div className="mb-3">
+                    <p className="text-xs text-center text-gray-500 mb-1 font-medium">オリジナル</p>
+                    <div
+                      className="relative group bg-gray-100 rounded overflow-hidden flex items-center justify-center cursor-zoom-in w-full"
+                      onClick={() => setZoomedImage(img)}
+                    >
+                      <img
+                        src={img.thumbnailUrl.replace(/=s\d+$/, '=s800')}
+                        alt={img.name}
+                        className="w-full object-contain pointer-events-none"
+                        draggable={false}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                        <span className="text-white text-3xl drop-shadow">🔍</span>
                       </div>
                     </div>
+                  </div>
+                  {/* クロッププレビュー（2列） */}
+                  <div className="grid grid-cols-2 gap-3">
                     {/* 4:5 縦（ドラッグで位置調整） */}
                     <div>
                       <p className="text-xs text-center text-gray-500 mb-1 font-medium">4:5（縦）</p>
