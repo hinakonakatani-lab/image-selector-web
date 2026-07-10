@@ -508,6 +508,58 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     folder.images.map(image => ({ image, path: folder.path }))
   );
 
+  const downloadZipBlob = useCallback(async (
+    files: { fileId: string; name?: string; folderLabel?: string }[],
+    zipName: string
+  ) => {
+    if (files.length === 0) return;
+    setDownloadingZip(true);
+    try {
+      const res = await fetch("/api/drive/download-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files }),
+      });
+      if (!res.ok) throw new Error("失敗");
+      const failedCount = Number(res.headers.get("X-Failed-Count") || 0);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = zipName;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (failedCount > 0) {
+        alert(`${failedCount}件のダウンロードに失敗しました`);
+      }
+    } catch {
+      alert("ダウンロードに失敗しました");
+    } finally {
+      setDownloadingZip(false);
+    }
+  }, []);
+
+  const downloadFolderTagZip = useCallback((n: number) => {
+    const files = allImagesWithPath
+      .filter(({ image }) => folderTags[image.id] === n)
+      .map(({ image }) => ({
+        fileId: image.id,
+        name: renameMap[image.id] || undefined,
+      }));
+    downloadZipBlob(files, `${n}本目.zip`);
+  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
+
+  const downloadAllFolderTagsZip = useCallback(() => {
+    const files = allImagesWithPath
+      .filter(({ image }) => folderTags[image.id])
+      .map(({ image }) => ({
+        fileId: image.id,
+        name: renameMap[image.id] || undefined,
+        folderLabel: `${folderTags[image.id]}本目`,
+      }));
+    downloadZipBlob(files, "全本目.zip");
+  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
+
 
 const handleMonthSave = useCallback(async (color: string) => {
     const month = monthInput.trim();
@@ -841,6 +893,13 @@ const handleMonthSave = useCallback(async (color: string) => {
                   ⚙️ {folderTagCount}本まで
                 </button>
               )}
+              <button
+                onClick={downloadAllFolderTagsZip}
+                disabled={downloadingZip}
+                className="text-xs px-3 py-1.5 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+              >
+                {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
+              </button>
             </>
           ) : (
             COLOR_TABS.map(tab => (
