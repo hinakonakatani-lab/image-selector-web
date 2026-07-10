@@ -23,6 +23,35 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+// Ensures each zip entry path is unique within a request. If `path` was
+// already used, appends a " (2)", " (3)", ... suffix before the file
+// extension (and after any folder prefix) until an unused path is found.
+// Synchronous check-then-insert on a shared Set is safe here because
+// mapWithConcurrency never awaits between computing the path and calling
+// this function, so there is no interleaving between concurrent files.
+function dedupePath(path: string, usedPaths: Set<string>): string {
+  if (!usedPaths.has(path)) {
+    usedPaths.add(path);
+    return path;
+  }
+
+  const lastSlash = path.lastIndexOf("/");
+  const dir = lastSlash >= 0 ? path.slice(0, lastSlash + 1) : "";
+  const fileName = lastSlash >= 0 ? path.slice(lastSlash + 1) : path;
+  const dotIndex = fileName.lastIndexOf(".");
+  const base = dotIndex >= 0 ? fileName.slice(0, dotIndex) : fileName;
+  const ext = dotIndex >= 0 ? fileName.slice(dotIndex) : "";
+
+  let counter = 2;
+  let candidate = `${dir}${base} (${counter})${ext}`;
+  while (usedPaths.has(candidate)) {
+    counter++;
+    candidate = `${dir}${base} (${counter})${ext}`;
+  }
+  usedPaths.add(candidate);
+  return candidate;
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.accessToken) {
@@ -39,6 +68,7 @@ export async function POST(request: Request) {
   const drive = google.drive({ version: "v3", auth: oauth2Client });
 
   const zip = new JSZip();
+  const usedPaths = new Set<string>();
   let failedCount = 0;
 
   await mapWithConcurrency(files, CONCURRENCY, async (file) => {
@@ -59,7 +89,8 @@ export async function POST(request: Request) {
       );
       const data = res.data as ArrayBuffer;
 
-      const path = file.folderLabel ? `${file.folderLabel}/${baseName}` : baseName;
+      const rawPath = file.folderLabel ? `${file.folderLabel}/${baseName}` : baseName;
+      const path = dedupePath(rawPath, usedPaths);
       zip.file(path, data);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
