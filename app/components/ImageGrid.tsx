@@ -9,6 +9,8 @@ const GRAY = "#999999";
 type DragRect = { x: number; y: number; w: number; h: number };
 type MemoEntry = { text: string; authorName: string; updatedAt: string };
 
+const NUMBER_TAB_PREFIX = "num:";
+
 const COLOR_TABS = [
   { value: "#ea9999", label: "赤", emoji: "🟥" },
   { value: "#a4c2f4", label: "青", emoji: "🟦" },
@@ -18,18 +20,56 @@ const COLOR_TABS = [
   { value: "#999999", label: "グレー（NG）", emoji: "⬛" },
 ];
 
+function RenameInput({
+  fileId,
+  initialValue,
+  originalName,
+  onSave,
+}: {
+  fileId: string;
+  initialValue: string;
+  originalName: string;
+  onSave: (fileId: string, name: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== initialValue) onSave(fileId, value);
+      }}
+      placeholder={originalName}
+      className="w-full text-xs px-1 py-0.5 border rounded mt-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+    />
+  );
+}
+
 type Props = {
   folders: DriveFolder[];
   folderId: string;
   initialColors: Record<string, string>;
   initialMonths: Record<string, string>;
   initialMemos: Record<string, MemoEntry>;
+  initialFolderTagCount: number;
+  initialFolderTags: Record<string, number>;
+  initialRenameMap: Record<string, string>;
   userName: string;
 };
 
-export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, userName }: Props) {
+export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
+  const [folderTags, setFolderTags] = useState<Record<string, number>>(initialFolderTags);
+  const [folderTagCount, setFolderTagCount] = useState<number>(initialFolderTagCount);
+  const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
+  const [folderModeOn, setFolderModeOn] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -279,6 +319,52 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     setSaving(false);
   }, [selected, folderId]);
 
+  const applyFolderTag = useCallback(async (tag: number | null) => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    const ids = Array.from(selected);
+
+    setFolderTags(prev => {
+      const next = { ...prev };
+      for (const id of ids) {
+        if (tag === null) delete next[id];
+        else next[id] = tag;
+      }
+      return next;
+    });
+    setSelected(new Set());
+
+    await fetch("/api/folder-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileIds: ids, tag }),
+    });
+    setSaving(false);
+  }, [selected, folderId]);
+
+  const saveFolderTagCount = useCallback(async (count: number) => {
+    setFolderTagCount(count);
+    await fetch("/api/folder-tag-count", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, count }),
+    });
+  }, [folderId]);
+
+  const saveRename = useCallback(async (fileId: string, name: string) => {
+    setRenameMap(prev => {
+      const next = { ...prev };
+      if (!name) delete next[fileId];
+      else next[fileId] = name;
+      return next;
+    });
+    await fetch("/api/rename-map", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileId, name: name || null }),
+    });
+  }, [folderId]);
+
   const handleOpenAllUrls = useCallback(() => {
     for (const id of selected) {
       const img = imageMap.current.get(id);
@@ -503,6 +589,26 @@ const handleMonthSave = useCallback(async (color: string) => {
     }))
     .filter(folder => folder.images.length > 0);
 
+  const activeFolderTagNum = activeTab.startsWith(NUMBER_TAB_PREFIX)
+    ? Number(activeTab.slice(NUMBER_TAB_PREFIX.length))
+    : null;
+
+  const folderTagNumbers = Array.from({ length: folderTagCount }, (_, i) => i + 1);
+
+  const folderTagCountsByNum = folderTagNumbers.reduce((acc, n) => {
+    acc[n] = allImagesWithPath.filter(({ image }) => folderTags[image.id] === n).length;
+    return acc;
+  }, {} as Record<number, number>);
+
+  const folderTagFolders = activeFolderTagNum !== null
+    ? folders
+      .map(folder => ({
+        ...folder,
+        images: folder.images.filter(img => folderTags[img.id] === activeFolderTagNum),
+      }))
+      .filter(folder => folder.images.length > 0)
+    : [];
+
   const colorTabImages = activeTab !== "all"
     ? allImagesWithPath.filter(({ image }) => colors[image.id] === activeTab)
     : [];
@@ -525,6 +631,10 @@ const handleMonthSave = useCallback(async (color: string) => {
   const filteredColorTabFolders = searchTerms.length > 0
     ? colorTabFolders.filter(f => matchesSearch(f.path))
     : colorTabFolders;
+
+  const filteredFolderTagFolders = searchTerms.length > 0
+    ? folderTagFolders.filter(f => matchesSearch(f.path))
+    : folderTagFolders;
 
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
   const uncoloredCount = allImagesWithPath.filter(({ image }) => !colors[image.id]).length;
