@@ -771,23 +771,49 @@ const handleMonthSave = useCallback(async (color: string) => {
               <span className="ml-1 text-xs font-normal text-orange-500">（{lastRandomIds.size}枚）</span>
             )}
           </button>
-          {COLOR_TABS.map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.value
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tab.emoji} {tab.label}
-              {months[tab.value] && (
-                <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
-              )}
-              （{colorCounts[tab.value]}）
-            </button>
-          ))}
+          <button
+            onClick={() => { setFolderModeOn(v => !v); setActiveTab("all"); }}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+              folderModeOn
+                ? "border-purple-500 text-purple-600"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            🔢 本数振り分け
+          </button>
+          {folderModeOn ? (
+            folderTagNumbers.map(n => (
+              <button
+                key={n}
+                onClick={() => setActiveTab(`${NUMBER_TAB_PREFIX}${n}`)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === `${NUMBER_TAB_PREFIX}${n}`
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {n}本目（{folderTagCountsByNum[n] || 0}）
+              </button>
+            ))
+          ) : (
+            COLOR_TABS.map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.value
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tab.emoji} {tab.label}
+                {months[tab.value] && (
+                  <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
+                )}
+                （{colorCounts[tab.value]}）
+              </button>
+            ))
+          )}
           <button
             onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
             className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
@@ -1077,7 +1103,7 @@ const handleMonthSave = useCallback(async (color: string) => {
           transition: "transform 0.3s ease",
         }}
       >
-        {COLOR_TABS.map(c => (
+        {!folderModeOn && COLOR_TABS.map(c => (
           <button
             key={c.value}
             onClick={() => {
@@ -1097,15 +1123,34 @@ const handleMonthSave = useCallback(async (color: string) => {
             {c.emoji} {c.label}
           </button>
         ))}
-        <button
-          onClick={() => setConfirmDialog({
-            message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
-            onConfirm: () => applyColor(null),
-          })}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
-        >
-          ⬜ 色を消す
-        </button>
+        {!folderModeOn && (
+          <button
+            onClick={() => setConfirmDialog({
+              message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
+              onConfirm: () => applyColor(null),
+            })}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+          >
+            ⬜ 色を消す
+          </button>
+        )}
+        {folderModeOn && folderTagNumbers.map(n => (
+          <button
+            key={n}
+            onClick={() => applyFolderTag(n)}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-purple-300 hover:bg-purple-50 text-purple-700 font-medium"
+          >
+            🔢 {n}本目
+          </button>
+        ))}
+        {folderModeOn && (
+          <button
+            onClick={() => applyFolderTag(null)}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+          >
+            ⬜ 本目を消す
+          </button>
+        )}
         {selected.size === 1 && (
           <button
             onClick={() => openMemoModal([...selected][0])}
