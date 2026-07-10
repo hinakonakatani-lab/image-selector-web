@@ -684,6 +684,12 @@ const handleMonthSave = useCallback(async (color: string) => {
               }
             }}
           />
+          {/* 本目タグバッジ（常時表示） */}
+          {folderTags[image.id] && (
+            <div className="absolute top-1 left-1 z-10 bg-black/70 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {folderTags[image.id]}
+            </div>
+          )}
           {/* 選択オーバーレイ */}
           {isSelected && (
             <div className="absolute inset-0 bg-blue-500/20 flex items-start justify-end p-1">
