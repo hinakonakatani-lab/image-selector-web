@@ -1140,6 +1140,44 @@ const handleMonthSave = useCallback(async (color: string) => {
         </>
       )}
 
+      {/* 本目タグ別フィルタ表示 */}
+      {activeFolderTagNum !== null && (
+        <>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-sm text-gray-500">
+              {activeFolderTagNum}本目：{filteredFolderTagFolders.reduce((sum, f) => sum + f.images.length, 0)}枚
+            </span>
+            <button
+              onClick={() => downloadFolderTagZip(activeFolderTagNum)}
+              disabled={downloadingZip || filteredFolderTagFolders.length === 0}
+              className="ml-auto text-sm px-3 py-1 rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+            >
+              {downloadingZip ? "⏳ DL中..." : `📦 ${activeFolderTagNum}本目をダウンロード`}
+            </button>
+          </div>
+
+          {filteredFolderTagFolders.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+              {filteredFolderTagFolders.flatMap(folder => folder.images).map(image => (
+                <div key={image.id}>
+                  {renderImage(image)}
+                  <RenameInput
+                    fileId={image.id}
+                    initialValue={renameMap[image.id] || ""}
+                    originalName={image.name}
+                    onSave={saveRename}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 py-10">
+              {searchQuery ? `「${searchQuery}」に一致するフォルダはありません` : "この本目にはまだ画像がありません"}
+            </div>
+          )}
+        </>
+      )}
+
       {/* 選択中の左サイドバー */}
       <div
         className="fixed left-0 bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
