@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
+import { FOLDER_TAG_VISIBILITY_EVENT, FOLDER_TAG_VISIBILITY_STORAGE_KEY } from "@/app/components/FolderTagVisibilityToggle";
 
 const YELLOW = "#ffe599";
 const GRAY = "#999999";
@@ -69,6 +70,9 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [folderTagCount, setFolderTagCount] = useState<number>(initialFolderTagCount);
   const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [showFolderTagUI, setShowFolderTagUI] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem(FOLDER_TAG_VISIBILITY_STORAGE_KEY) === "true"
+  );
   const [editingFolderTagCount, setEditingFolderTagCount] = useState(false);
   const [folderTagCountInput, setFolderTagCountInput] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -123,6 +127,19 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       }
     }
   }, [folders]);
+
+  // 本数振り分けUIの表示ON/OFF（ヘッダーのトグルとlocalStorage経由で同期）
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const on = (e as CustomEvent<boolean>).detail;
+      setShowFolderTagUI(on);
+      if (!on) {
+        setActiveTab(current => (current.startsWith(NUMBER_TAB_PREFIX) ? "all" : current));
+      }
+    };
+    window.addEventListener(FOLDER_TAG_VISIBILITY_EVENT, onChange);
+    return () => window.removeEventListener(FOLDER_TAG_VISIBILITY_EVENT, onChange);
+  }, []);
 
   // ラバーバンド選択のmousemove / mouseup / エッジスクロールをwindowで管理
   useEffect(() => {
@@ -848,63 +865,6 @@ const handleMonthSave = useCallback(async (color: string) => {
               （{colorCounts[tab.value]}）
             </button>
           ))}
-          {folderTagNumbers.map(n => (
-            <button
-              key={n}
-              onClick={() => setActiveTab(`${NUMBER_TAB_PREFIX}${n}`)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === `${NUMBER_TAB_PREFIX}${n}`
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {n}本目（{folderTagCountsByNum[n] || 0}）
-            </button>
-          ))}
-          {editingFolderTagCount ? (
-            <span className="flex items-center gap-1 self-center ml-1">
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={folderTagCountInput}
-                onChange={e => setFolderTagCountInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === "Enter") {
-                    saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
-                    setEditingFolderTagCount(false);
-                  }
-                  if (e.key === "Escape") setEditingFolderTagCount(false);
-                }}
-                className="w-14 border rounded px-1 py-0.5 text-xs"
-                autoFocus
-              />
-              <button
-                onClick={() => {
-                  saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
-                  setEditingFolderTagCount(false);
-                }}
-                className="text-xs px-2 py-0.5 rounded bg-blue-500 text-white"
-              >
-                保存
-              </button>
-            </span>
-          ) : (
-            <button
-              onClick={() => { setEditingFolderTagCount(true); setFolderTagCountInput(String(folderTagCount)); }}
-              className="text-xs px-2 py-1 self-center text-gray-400 hover:text-gray-600"
-              title="本数を設定"
-            >
-              ⚙️ {folderTagCount}本まで
-            </button>
-          )}
-          <button
-            onClick={downloadAllFolderTagsZip}
-            disabled={downloadingZip}
-            className="text-xs px-3 py-1.5 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
-          >
-            {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
-          </button>
           <button
             onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
             className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
@@ -912,6 +872,67 @@ const handleMonthSave = useCallback(async (color: string) => {
             📥 インポート
           </button>
         </div>
+        {showFolderTagUI && (
+          <div className="flex flex-wrap items-center gap-1 border-b py-1 bg-purple-50/60">
+            {folderTagNumbers.map(n => (
+              <button
+                key={n}
+                onClick={() => setActiveTab(`${NUMBER_TAB_PREFIX}${n}`)}
+                className={`px-2 py-1 text-xs font-medium border-b-2 transition-colors ${
+                  activeTab === `${NUMBER_TAB_PREFIX}${n}`
+                    ? "border-purple-500 text-purple-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {n}本目（{folderTagCountsByNum[n] || 0}）
+              </button>
+            ))}
+            {editingFolderTagCount ? (
+              <span className="flex items-center gap-1 self-center ml-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={folderTagCountInput}
+                  onChange={e => setFolderTagCountInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
+                      setEditingFolderTagCount(false);
+                    }
+                    if (e.key === "Escape") setEditingFolderTagCount(false);
+                  }}
+                  className="w-14 border rounded px-1 py-0.5 text-xs"
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
+                    setEditingFolderTagCount(false);
+                  }}
+                  className="text-xs px-2 py-0.5 rounded bg-blue-500 text-white"
+                >
+                  保存
+                </button>
+              </span>
+            ) : (
+              <button
+                onClick={() => { setEditingFolderTagCount(true); setFolderTagCountInput(String(folderTagCount)); }}
+                className="text-xs px-2 py-1 self-center text-gray-400 hover:text-gray-600"
+                title="本数を設定"
+              >
+                ⚙️ {folderTagCount}本まで
+              </button>
+            )}
+            <button
+              onClick={downloadAllFolderTagsZip}
+              disabled={downloadingZip}
+              className="text-xs px-3 py-1 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+            >
+              {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
+            </button>
+          </div>
+        )}
         {/* 検索バー */}
         <div className="flex items-center gap-2 py-1.5 border-b">
           <span className="text-gray-400 text-sm shrink-0">🔍</span>
@@ -1261,7 +1282,7 @@ const handleMonthSave = useCallback(async (color: string) => {
         >
           ⬜ 色を消す
         </button>
-        {folderTagNumbers.map(n => (
+        {showFolderTagUI && folderTagNumbers.map(n => (
           <button
             key={n}
             onClick={() => applyFolderTag(n)}
@@ -1270,12 +1291,14 @@ const handleMonthSave = useCallback(async (color: string) => {
             🔢 {n}本目
           </button>
         ))}
-        <button
-          onClick={() => applyFolderTag(null)}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
-        >
-          ⬜ 本目を消す
-        </button>
+        {showFolderTagUI && (
+          <button
+            onClick={() => applyFolderTag(null)}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+          >
+            ⬜ 本目を消す
+          </button>
+        )}
         {selected.size === 1 && (
           <button
             onClick={() => openMemoModal([...selected][0])}

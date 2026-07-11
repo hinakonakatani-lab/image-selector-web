@@ -11,6 +11,7 @@ import FolderBookmarks from "@/app/components/FolderBookmarks";
 import FolderForm from "@/app/components/FolderForm";
 import ExportImport from "@/app/components/ExportImport";
 import ManualColorPicker from "@/app/components/ManualColorPicker";
+import FolderTagVisibilityToggle from "@/app/components/FolderTagVisibilityToggle";
 import ThemeAnalysis from "@/app/components/ThemeAnalysis";
 import type { DriveFolder } from "@/app/api/drive/route";
 
@@ -204,6 +205,7 @@ export default async function Home({
           )}
           <ExportImport folderId={folderId || undefined} isAdmin={isAdmin} />
           <ManualColorPicker folderId={folderId} />
+          <FolderTagVisibilityToggle />
           <span className="text-sm text-gray-500">{session.user?.email}</span>
           <form
             action={async () => {
