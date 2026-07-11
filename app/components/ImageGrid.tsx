@@ -516,12 +516,15 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     folder.images.map(image => ({ image, path: folder.path }))
   );
 
+  // downloadingZipの管理は呼び出し側（1本目だけ/全本目まとめて）に任せる。
+  // 1回のリクエストが大きすぎるとサーバー側でメモリ不足になるため、
+  // 「全てダウンロード」でも1つの巨大なZIPは作らず、本目ごとに分けて
+  // 順番にリクエストする（各リクエストは実績のある小さいサイズに保つ）。
   const downloadZipBlob = useCallback(async (
     files: { fileId: string; name?: string; folderLabel?: string }[],
     zipName: string
   ) => {
     if (files.length === 0) return;
-    setDownloadingZip(true);
     try {
       const res = await fetch("/api/drive/download-zip", {
         method: "POST",
@@ -538,24 +541,29 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       a.click();
       URL.revokeObjectURL(url);
       if (failedCount > 0) {
-        alert(`${failedCount}件のダウンロードに失敗しました`);
+        alert(`${zipName}: ${failedCount}件のダウンロードに失敗しました`);
       }
     } catch {
-      alert("ダウンロードに失敗しました");
-    } finally {
-      setDownloadingZip(false);
+      alert(`${zipName} のダウンロードに失敗しました`);
     }
   }, []);
 
-  const downloadAllFolderTagsZip = useCallback(() => {
-    const files = allImagesWithPath
-      .filter(({ image }) => folderTags[image.id])
-      .map(({ image }) => ({
-        fileId: image.id,
-        name: renameMap[image.id] || undefined,
-        folderLabel: `${folderTags[image.id]}本目`,
-      }));
-    downloadZipBlob(files, "全本目.zip");
+  const downloadAllFolderTagsZip = useCallback(async () => {
+    const numbers = Array.from(new Set(Object.values(folderTags))).sort((a, b) => a - b);
+    if (numbers.length === 0) return;
+    setDownloadingZip(true);
+    for (const n of numbers) {
+      const files = allImagesWithPath
+        .filter(({ image }) => folderTags[image.id] === n)
+        .map(({ image }) => ({
+          fileId: image.id,
+          name: renameMap[image.id] || undefined,
+        }));
+      await downloadZipBlob(files, `${n}本目.zip`);
+      // ブラウザが立て続けの複数ダウンロードをブロックしないよう少し間隔を空ける
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+    setDownloadingZip(false);
   }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
 
 
@@ -688,7 +696,7 @@ const handleMonthSave = useCallback(async (color: string) => {
     ? folderTagFolders.filter(f => matchesSearch(f.path))
     : folderTagFolders;
 
-  const downloadFolderTagZip = useCallback((n: number) => {
+  const downloadFolderTagZip = useCallback(async (n: number) => {
     const files = filteredFolderTagFolders
       .flatMap(folder => folder.images)
       .filter(image => folderTags[image.id] === n)
@@ -696,7 +704,9 @@ const handleMonthSave = useCallback(async (color: string) => {
         fileId: image.id,
         name: renameMap[image.id] || undefined,
       }));
-    downloadZipBlob(files, `${n}本目.zip`);
+    setDownloadingZip(true);
+    await downloadZipBlob(files, `${n}本目.zip`);
+    setDownloadingZip(false);
   }, [filteredFolderTagFolders, folderTags, renameMap, downloadZipBlob]);
 
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
@@ -920,8 +930,9 @@ const handleMonthSave = useCallback(async (color: string) => {
               onClick={downloadAllFolderTagsZip}
               disabled={downloadingZip}
               className="text-xs px-3 py-1 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+              title="本目ごとに分けて順番にダウンロードします（1本目.zip、2本目.zipのように複数ファイルになります）"
             >
-              {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
+              {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード（本目ごと）"}
             </button>
           </div>
         )}
