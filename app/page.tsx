@@ -124,6 +124,9 @@ export default async function Home({
   let colors: Record<string, string> = {};
   let months: Record<string, string> = {};
   let memos: Record<string, MemoEntry> = {};
+  let folderTagCount = 5;
+  let folderTags: Record<string, number> = {};
+  let renameMap: Record<string, string> = {};
   let cachedAt: number | null = null;
   let error = "";
 
@@ -164,6 +167,15 @@ export default async function Home({
 
       const memoKey = `memos:shared:${folderId}`;
       memos = (await kv.get<Record<string, MemoEntry>>(memoKey)) || {};
+
+      const folderTagCountKey = `folderTagCount:${folderId}`;
+      folderTagCount = (await kv.get<number>(folderTagCountKey)) ?? 5;
+
+      const folderTagsKey = `folderTags:shared:${folderId}`;
+      folderTags = (await kv.get<Record<string, number>>(folderTagsKey)) || {};
+
+      const renameMapKey = `renameMap:shared:${folderId}`;
+      renameMap = (await kv.get<Record<string, string>>(renameMapKey)) || {};
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : "エラーが発生しました";
     }
@@ -263,7 +275,18 @@ export default async function Home({
 
         {/* 画像グリッド（画像選定タブ） */}
         {folders.length > 0 && activeTab === "select" && (
-          <ImageGrid key={folderId} folders={folders} folderId={folderId} initialColors={colors} initialMonths={months} initialMemos={memos} userName={session.user?.name || session.user?.email || ""} />
+          <ImageGrid
+            key={folderId}
+            folders={folders}
+            folderId={folderId}
+            initialColors={colors}
+            initialMonths={months}
+            initialMemos={memos}
+            initialFolderTagCount={folderTagCount}
+            initialFolderTags={folderTags}
+            initialRenameMap={renameMap}
+            userName={session.user?.name || session.user?.email || ""}
+          />
         )}
 
         {/* テーマ分析タブ */}

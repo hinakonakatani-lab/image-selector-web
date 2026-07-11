@@ -9,6 +9,8 @@ const GRAY = "#999999";
 type DragRect = { x: number; y: number; w: number; h: number };
 type MemoEntry = { text: string; authorName: string; updatedAt: string };
 
+const NUMBER_TAB_PREFIX = "num:";
+
 const COLOR_TABS = [
   { value: "#ea9999", label: "赤", emoji: "🟥" },
   { value: "#a4c2f4", label: "青", emoji: "🟦" },
@@ -18,18 +20,58 @@ const COLOR_TABS = [
   { value: "#999999", label: "グレー（NG）", emoji: "⬛" },
 ];
 
+function RenameInput({
+  fileId,
+  initialValue,
+  originalName,
+  onSave,
+}: {
+  fileId: string;
+  initialValue: string;
+  originalName: string;
+  onSave: (fileId: string, name: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== initialValue) onSave(fileId, value);
+      }}
+      placeholder={originalName}
+      className="w-full text-xs px-1 py-0.5 border rounded mt-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+    />
+  );
+}
+
 type Props = {
   folders: DriveFolder[];
   folderId: string;
   initialColors: Record<string, string>;
   initialMonths: Record<string, string>;
   initialMemos: Record<string, MemoEntry>;
+  initialFolderTagCount: number;
+  initialFolderTags: Record<string, number>;
+  initialRenameMap: Record<string, string>;
   userName: string;
 };
 
-export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, userName }: Props) {
+export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
+  const [folderTags, setFolderTags] = useState<Record<string, number>>(initialFolderTags);
+  const [folderTagCount, setFolderTagCount] = useState<number>(initialFolderTagCount);
+  const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
+  const [folderModeOn, setFolderModeOn] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+  const [editingFolderTagCount, setEditingFolderTagCount] = useState(false);
+  const [folderTagCountInput, setFolderTagCountInput] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -279,6 +321,52 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     setSaving(false);
   }, [selected, folderId]);
 
+  const applyFolderTag = useCallback(async (tag: number | null) => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    const ids = Array.from(selected);
+
+    setFolderTags(prev => {
+      const next = { ...prev };
+      for (const id of ids) {
+        if (tag === null) delete next[id];
+        else next[id] = tag;
+      }
+      return next;
+    });
+    setSelected(new Set());
+
+    await fetch("/api/folder-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileIds: ids, tag }),
+    });
+    setSaving(false);
+  }, [selected, folderId]);
+
+  const saveFolderTagCount = useCallback(async (count: number) => {
+    setFolderTagCount(count);
+    await fetch("/api/folder-tag-count", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, count }),
+    });
+  }, [folderId]);
+
+  const saveRename = useCallback(async (fileId: string, name: string) => {
+    setRenameMap(prev => {
+      const next = { ...prev };
+      if (!name) delete next[fileId];
+      else next[fileId] = name;
+      return next;
+    });
+    await fetch("/api/rename-map", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileId, name: name || null }),
+    });
+  }, [folderId]);
+
   const handleOpenAllUrls = useCallback(() => {
     for (const id of selected) {
       const img = imageMap.current.get(id);
@@ -420,6 +508,48 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     folder.images.map(image => ({ image, path: folder.path }))
   );
 
+  const downloadZipBlob = useCallback(async (
+    files: { fileId: string; name?: string; folderLabel?: string }[],
+    zipName: string
+  ) => {
+    if (files.length === 0) return;
+    setDownloadingZip(true);
+    try {
+      const res = await fetch("/api/drive/download-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files }),
+      });
+      if (!res.ok) throw new Error("失敗");
+      const failedCount = Number(res.headers.get("X-Failed-Count") || 0);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = zipName;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (failedCount > 0) {
+        alert(`${failedCount}件のダウンロードに失敗しました`);
+      }
+    } catch {
+      alert("ダウンロードに失敗しました");
+    } finally {
+      setDownloadingZip(false);
+    }
+  }, []);
+
+  const downloadAllFolderTagsZip = useCallback(() => {
+    const files = allImagesWithPath
+      .filter(({ image }) => folderTags[image.id])
+      .map(({ image }) => ({
+        fileId: image.id,
+        name: renameMap[image.id] || undefined,
+        folderLabel: `${folderTags[image.id]}本目`,
+      }));
+    downloadZipBlob(files, "全本目.zip");
+  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
+
 
 const handleMonthSave = useCallback(async (color: string) => {
     const month = monthInput.trim();
@@ -503,6 +633,26 @@ const handleMonthSave = useCallback(async (color: string) => {
     }))
     .filter(folder => folder.images.length > 0);
 
+  const activeFolderTagNum = activeTab.startsWith(NUMBER_TAB_PREFIX)
+    ? Number(activeTab.slice(NUMBER_TAB_PREFIX.length))
+    : null;
+
+  const folderTagNumbers = Array.from({ length: folderTagCount }, (_, i) => i + 1);
+
+  const folderTagCountsByNum = folderTagNumbers.reduce((acc, n) => {
+    acc[n] = allImagesWithPath.filter(({ image }) => folderTags[image.id] === n).length;
+    return acc;
+  }, {} as Record<number, number>);
+
+  const folderTagFolders = activeFolderTagNum !== null
+    ? folders
+      .map(folder => ({
+        ...folder,
+        images: folder.images.filter(img => folderTags[img.id] === activeFolderTagNum),
+      }))
+      .filter(folder => folder.images.length > 0)
+    : [];
+
   const colorTabImages = activeTab !== "all"
     ? allImagesWithPath.filter(({ image }) => colors[image.id] === activeTab)
     : [];
@@ -525,6 +675,21 @@ const handleMonthSave = useCallback(async (color: string) => {
   const filteredColorTabFolders = searchTerms.length > 0
     ? colorTabFolders.filter(f => matchesSearch(f.path))
     : colorTabFolders;
+
+  const filteredFolderTagFolders = searchTerms.length > 0
+    ? folderTagFolders.filter(f => matchesSearch(f.path))
+    : folderTagFolders;
+
+  const downloadFolderTagZip = useCallback((n: number) => {
+    const files = filteredFolderTagFolders
+      .flatMap(folder => folder.images)
+      .filter(image => folderTags[image.id] === n)
+      .map(image => ({
+        fileId: image.id,
+        name: renameMap[image.id] || undefined,
+      }));
+    downloadZipBlob(files, `${n}本目.zip`);
+  }, [filteredFolderTagFolders, folderTags, renameMap, downloadZipBlob]);
 
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
   const uncoloredCount = allImagesWithPath.filter(({ image }) => !colors[image.id]).length;
@@ -574,6 +739,12 @@ const handleMonthSave = useCallback(async (color: string) => {
               }
             }}
           />
+          {/* 本目タグバッジ（常時表示） */}
+          {folderTags[image.id] && (
+            <div className="absolute top-1 left-1 z-10 bg-black/70 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              {folderTags[image.id]}
+            </div>
+          )}
           {/* 選択オーバーレイ */}
           {isSelected && (
             <div className="absolute inset-0 bg-blue-500/20 flex items-start justify-end p-1">
@@ -661,23 +832,95 @@ const handleMonthSave = useCallback(async (color: string) => {
               <span className="ml-1 text-xs font-normal text-orange-500">（{lastRandomIds.size}枚）</span>
             )}
           </button>
-          {COLOR_TABS.map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.value
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tab.emoji} {tab.label}
-              {months[tab.value] && (
-                <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
+          <button
+            onClick={() => { setFolderModeOn(v => !v); setActiveTab("all"); }}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+              folderModeOn
+                ? "border-purple-500 text-purple-600"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            🔢 本数振り分け
+          </button>
+          {folderModeOn ? (
+            <>
+              {folderTagNumbers.map(n => (
+                <button
+                  key={n}
+                  onClick={() => setActiveTab(`${NUMBER_TAB_PREFIX}${n}`)}
+                  className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === `${NUMBER_TAB_PREFIX}${n}`
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {n}本目（{folderTagCountsByNum[n] || 0}）
+                </button>
+              ))}
+              {editingFolderTagCount ? (
+                <span className="flex items-center gap-1 self-center ml-1">
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={folderTagCountInput}
+                    onChange={e => setFolderTagCountInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
+                        setEditingFolderTagCount(false);
+                      }
+                      if (e.key === "Escape") setEditingFolderTagCount(false);
+                    }}
+                    className="w-14 border rounded px-1 py-0.5 text-xs"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
+                      setEditingFolderTagCount(false);
+                    }}
+                    className="text-xs px-2 py-0.5 rounded bg-blue-500 text-white"
+                  >
+                    保存
+                  </button>
+                </span>
+              ) : (
+                <button
+                  onClick={() => { setEditingFolderTagCount(true); setFolderTagCountInput(String(folderTagCount)); }}
+                  className="text-xs px-2 py-1 self-center text-gray-400 hover:text-gray-600"
+                  title="本数を設定"
+                >
+                  ⚙️ {folderTagCount}本まで
+                </button>
               )}
-              （{colorCounts[tab.value]}）
-            </button>
-          ))}
+              <button
+                onClick={downloadAllFolderTagsZip}
+                disabled={downloadingZip}
+                className="text-xs px-3 py-1.5 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+              >
+                {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
+              </button>
+            </>
+          ) : (
+            COLOR_TABS.map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.value
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tab.emoji} {tab.label}
+                {months[tab.value] && (
+                  <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
+                )}
+                （{colorCounts[tab.value]}）
+              </button>
+            ))
+          )}
           <button
             onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
             className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
@@ -845,7 +1088,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       )}
 
       {/* 色別タブ */}
-      {activeTab !== "all" && activeTab !== "random" && (
+      {activeTab !== "all" && activeTab !== "random" && activeFolderTagNum === null && (
         <>
           {/* 月設定 + 一括削除 */}
           <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -957,6 +1200,44 @@ const handleMonthSave = useCallback(async (color: string) => {
         </>
       )}
 
+      {/* 本目タグ別フィルタ表示 */}
+      {activeFolderTagNum !== null && (
+        <>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-sm text-gray-500">
+              {activeFolderTagNum}本目：{filteredFolderTagFolders.reduce((sum, f) => sum + f.images.length, 0)}枚
+            </span>
+            <button
+              onClick={() => downloadFolderTagZip(activeFolderTagNum)}
+              disabled={downloadingZip || filteredFolderTagFolders.length === 0}
+              className="ml-auto text-sm px-3 py-1 rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+            >
+              {downloadingZip ? "⏳ DL中..." : `📦 ${activeFolderTagNum}本目をダウンロード`}
+            </button>
+          </div>
+
+          {filteredFolderTagFolders.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
+              {filteredFolderTagFolders.flatMap(folder => folder.images).map(image => (
+                <div key={image.id}>
+                  {renderImage(image)}
+                  <RenameInput
+                    fileId={image.id}
+                    initialValue={renameMap[image.id] || ""}
+                    originalName={image.name}
+                    onSave={saveRename}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 py-10">
+              {searchQuery ? `「${searchQuery}」に一致するフォルダはありません` : "この本目にはまだ画像がありません"}
+            </div>
+          )}
+        </>
+      )}
+
       {/* 選択中の左サイドバー */}
       <div
         className="fixed left-0 bottom-0 z-30 bg-white border-r border-gray-200 shadow-md flex flex-col gap-1 py-3 px-2 overflow-y-auto"
@@ -967,7 +1248,7 @@ const handleMonthSave = useCallback(async (color: string) => {
           transition: "transform 0.3s ease",
         }}
       >
-        {COLOR_TABS.map(c => (
+        {!folderModeOn && COLOR_TABS.map(c => (
           <button
             key={c.value}
             onClick={() => {
@@ -987,15 +1268,34 @@ const handleMonthSave = useCallback(async (color: string) => {
             {c.emoji} {c.label}
           </button>
         ))}
-        <button
-          onClick={() => setConfirmDialog({
-            message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
-            onConfirm: () => applyColor(null),
-          })}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
-        >
-          ⬜ 色を消す
-        </button>
+        {!folderModeOn && (
+          <button
+            onClick={() => setConfirmDialog({
+              message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
+              onConfirm: () => applyColor(null),
+            })}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+          >
+            ⬜ 色を消す
+          </button>
+        )}
+        {folderModeOn && folderTagNumbers.map(n => (
+          <button
+            key={n}
+            onClick={() => applyFolderTag(n)}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-purple-300 hover:bg-purple-50 text-purple-700 font-medium"
+          >
+            🔢 {n}本目
+          </button>
+        ))}
+        {folderModeOn && (
+          <button
+            onClick={() => applyFolderTag(null)}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+          >
+            ⬜ 本目を消す
+          </button>
+        )}
         {selected.size === 1 && (
           <button
             onClick={() => openMemoModal([...selected][0])}
