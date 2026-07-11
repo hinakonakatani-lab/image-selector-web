@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
-import { FOLDER_TAG_VISIBILITY_EVENT, FOLDER_TAG_VISIBILITY_STORAGE_KEY } from "@/app/components/FolderTagVisibilityToggle";
+import { useFolderTagVisibility } from "@/app/components/FolderTagVisibilityToggle";
 
 const YELLOW = "#ffe599";
 const GRAY = "#999999";
@@ -70,9 +70,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [folderTagCount, setFolderTagCount] = useState<number>(initialFolderTagCount);
   const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
   const [downloadingZip, setDownloadingZip] = useState(false);
-  const [showFolderTagUI, setShowFolderTagUI] = useState(
-    () => typeof window !== "undefined" && localStorage.getItem(FOLDER_TAG_VISIBILITY_STORAGE_KEY) === "true"
-  );
+  const showFolderTagUI = useFolderTagVisibility();
   const [editingFolderTagCount, setEditingFolderTagCount] = useState(false);
   const [folderTagCountInput, setFolderTagCountInput] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -128,18 +126,12 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, [folders]);
 
-  // 本数振り分けUIの表示ON/OFF（ヘッダーのトグルとlocalStorage経由で同期）
+  // 本数振り分けUIがOFFになったら、本目タブを表示中なら「全て」に戻す
   useEffect(() => {
-    const onChange = (e: Event) => {
-      const on = (e as CustomEvent<boolean>).detail;
-      setShowFolderTagUI(on);
-      if (!on) {
-        setActiveTab(current => (current.startsWith(NUMBER_TAB_PREFIX) ? "all" : current));
-      }
-    };
-    window.addEventListener(FOLDER_TAG_VISIBILITY_EVENT, onChange);
-    return () => window.removeEventListener(FOLDER_TAG_VISIBILITY_EVENT, onChange);
-  }, []);
+    if (!showFolderTagUI) {
+      setActiveTab(current => (current.startsWith(NUMBER_TAB_PREFIX) ? "all" : current));
+    }
+  }, [showFolderTagUI]);
 
   // ラバーバンド選択のmousemove / mouseup / エッジスクロールをwindowで管理
   useEffect(() => {

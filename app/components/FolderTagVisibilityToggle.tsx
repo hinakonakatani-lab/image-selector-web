@@ -1,24 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 
 export const FOLDER_TAG_VISIBILITY_STORAGE_KEY = "folderTagUIVisible";
 const STORAGE_KEY = FOLDER_TAG_VISIBILITY_STORAGE_KEY;
 export const FOLDER_TAG_VISIBILITY_EVENT = "foldertagvisibilitychange";
 
-export default function FolderTagVisibilityToggle() {
-  const [on, setOn] = useState(() => typeof window !== "undefined" && localStorage.getItem(STORAGE_KEY) === "true");
+function subscribe(callback: () => void) {
+  window.addEventListener(FOLDER_TAG_VISIBILITY_EVENT, callback);
+  return () => window.removeEventListener(FOLDER_TAG_VISIBILITY_EVENT, callback);
+}
 
-  const toggle = () => {
-    const next = !on;
-    setOn(next);
-    localStorage.setItem(STORAGE_KEY, String(next));
-    window.dispatchEvent(new CustomEvent(FOLDER_TAG_VISIBILITY_EVENT, { detail: next }));
-  };
+function getSnapshot() {
+  return localStorage.getItem(STORAGE_KEY) === "true";
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
+// localStorageと同期しつつ、サーバー/初回クライアントレンダーのハイドレーション不一致を避ける
+export function useFolderTagVisibility() {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+export function setFolderTagVisibility(on: boolean) {
+  localStorage.setItem(STORAGE_KEY, String(on));
+  window.dispatchEvent(new CustomEvent(FOLDER_TAG_VISIBILITY_EVENT, { detail: on }));
+}
+
+export default function FolderTagVisibilityToggle() {
+  const on = useFolderTagVisibility();
 
   return (
     <button
-      onClick={toggle}
+      onClick={() => setFolderTagVisibility(!on)}
       className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-600"
       title="本数振り分けタブの表示切り替え"
     >
