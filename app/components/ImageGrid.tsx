@@ -539,16 +539,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, []);
 
-  const downloadFolderTagZip = useCallback((n: number) => {
-    const files = allImagesWithPath
-      .filter(({ image }) => folderTags[image.id] === n)
-      .map(({ image }) => ({
-        fileId: image.id,
-        name: renameMap[image.id] || undefined,
-      }));
-    downloadZipBlob(files, `${n}本目.zip`);
-  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
-
   const downloadAllFolderTagsZip = useCallback(() => {
     const files = allImagesWithPath
       .filter(({ image }) => folderTags[image.id])
@@ -689,6 +679,17 @@ const handleMonthSave = useCallback(async (color: string) => {
   const filteredFolderTagFolders = searchTerms.length > 0
     ? folderTagFolders.filter(f => matchesSearch(f.path))
     : folderTagFolders;
+
+  const downloadFolderTagZip = useCallback((n: number) => {
+    const files = filteredFolderTagFolders
+      .flatMap(folder => folder.images)
+      .filter(image => folderTags[image.id] === n)
+      .map(image => ({
+        fileId: image.id,
+        name: renameMap[image.id] || undefined,
+      }));
+    downloadZipBlob(files, `${n}本目.zip`);
+  }, [filteredFolderTagFolders, folderTags, renameMap, downloadZipBlob]);
 
   const allCount = allImagesWithPath.filter(({ image }) => colors[image.id] !== GRAY).length;
   const uncoloredCount = allImagesWithPath.filter(({ image }) => !colors[image.id]).length;
@@ -1087,7 +1088,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       )}
 
       {/* 色別タブ */}
-      {activeTab !== "all" && activeTab !== "random" && (
+      {activeTab !== "all" && activeTab !== "random" && activeFolderTagNum === null && (
         <>
           {/* 月設定 + 一括削除 */}
           <div className="flex items-center gap-2 mb-4 flex-wrap">
