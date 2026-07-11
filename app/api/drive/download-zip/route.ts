@@ -53,16 +53,28 @@ function dedupePath(path: string, usedPaths: Set<string>): string {
   return candidate;
 }
 
+// TEMPORARY diagnostic logging to find where a reported multi-minute hang
+// occurs. Remove once the hang's location is identified and fixed.
+function diag(label: string, extra?: unknown) {
+  console.log(`[download-zip][diag] +${Date.now() - diagStart}ms ${label}`, extra ?? "");
+}
+let diagStart = 0;
+
 export async function POST(request: Request) {
+  diagStart = Date.now();
+  diag("request start");
+
   const session = await auth();
   if (!session?.accessToken) {
     return new Response(JSON.stringify({ error: "未ログイン" }), { status: 401 });
   }
+  diag("auth ok");
 
   const { files } = (await request.json()) as { files: ZipFileRequest[] };
   if (!files || files.length === 0) {
     return new Response(JSON.stringify({ error: "filesが必要です" }), { status: 400 });
   }
+  diag("parsed body", { fileCount: files.length });
 
   const oauth2Client = new google.auth.OAuth2();
   oauth2Client.setCredentials({ access_token: session.accessToken });
@@ -76,13 +88,16 @@ export async function POST(request: Request) {
   let failedCount = 0;
   const validFiles: { fileId: string; path: string }[] = [];
 
+  diag("metadata phase: start");
   await mapWithConcurrency(files, CONCURRENCY, async (file) => {
+    diag("metadata: fetching", file.fileId);
     try {
       const meta = await drive.files.get({
         fileId: file.fileId,
         fields: "name",
         supportsAllDrives: true,
       });
+      diag("metadata: got", file.fileId);
       const originalName = meta.data.name || file.fileId;
       const dotIndex = originalName.lastIndexOf(".");
       const ext = dotIndex >= 0 ? originalName.slice(dotIndex) : "";
@@ -94,9 +109,11 @@ export async function POST(request: Request) {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       console.error("[download-zip] metadata failed:", file.fileId, message);
+      diag("metadata: FAILED", { fileId: file.fileId, message });
       failedCount++;
     }
   });
+  diag("metadata phase: done", { validCount: validFiles.length, failedCount });
 
   if (validFiles.length === 0) {
     return new Response(JSON.stringify({ error: "全てのファイルの取得に失敗しました" }), {
@@ -112,19 +129,24 @@ export async function POST(request: Request) {
   const zip = new JSZip();
   let zippedCount = 0;
   for (const { fileId, path } of validFiles) {
+    diag("media: opening stream", fileId);
     try {
       const res = await drive.files.get(
         { fileId, alt: "media", supportsAllDrives: true },
         { responseType: "stream" }
       );
+      diag("media: stream opened", fileId);
       zip.file(path, res.data as unknown as NodeJS.ReadableStream, { compression: "STORE" });
+      diag("media: registered in zip", fileId);
       zippedCount++;
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       console.error("[download-zip] media fetch failed:", fileId, message);
+      diag("media: FAILED", { fileId, message });
       failedCount++;
     }
   }
+  diag("media phase: done", { zippedCount, failedCount });
 
   if (zippedCount === 0) {
     return new Response(JSON.stringify({ error: "全てのファイルの取得に失敗しました" }), {
@@ -133,8 +155,12 @@ export async function POST(request: Request) {
     });
   }
 
+  diag("generating zip stream");
   const nodeStream = zip.generateNodeStream({ type: "nodebuffer", streamFiles: true });
+  nodeStream.on("end", () => diag("zip nodeStream: end event"));
+  nodeStream.on("error", (err) => diag("zip nodeStream: ERROR", String(err)));
   const webStream = Readable.toWeb(nodeStream as Readable) as ReadableStream;
+  diag("returning response");
 
   return new Response(webStream, {
     headers: {
