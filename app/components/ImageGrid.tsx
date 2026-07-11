@@ -68,7 +68,6 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [folderTags, setFolderTags] = useState<Record<string, number>>(initialFolderTags);
   const [folderTagCount, setFolderTagCount] = useState<number>(initialFolderTagCount);
   const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
-  const [folderModeOn, setFolderModeOn] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [editingFolderTagCount, setEditingFolderTagCount] = useState(false);
   const [folderTagCountInput, setFolderTagCountInput] = useState("");
@@ -832,95 +831,80 @@ const handleMonthSave = useCallback(async (color: string) => {
               <span className="ml-1 text-xs font-normal text-orange-500">（{lastRandomIds.size}枚）</span>
             )}
           </button>
-          <button
-            onClick={() => { setFolderModeOn(v => !v); setActiveTab("all"); }}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-              folderModeOn
-                ? "border-purple-500 text-purple-600"
-                : "border-transparent text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            🔢 本数振り分け
-          </button>
-          {folderModeOn ? (
-            <>
-              {folderTagNumbers.map(n => (
-                <button
-                  key={n}
-                  onClick={() => setActiveTab(`${NUMBER_TAB_PREFIX}${n}`)}
-                  className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === `${NUMBER_TAB_PREFIX}${n}`
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {n}本目（{folderTagCountsByNum[n] || 0}）
-                </button>
-              ))}
-              {editingFolderTagCount ? (
-                <span className="flex items-center gap-1 self-center ml-1">
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={folderTagCountInput}
-                    onChange={e => setFolderTagCountInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
-                        setEditingFolderTagCount(false);
-                      }
-                      if (e.key === "Escape") setEditingFolderTagCount(false);
-                    }}
-                    className="w-14 border rounded px-1 py-0.5 text-xs"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => {
-                      saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
-                      setEditingFolderTagCount(false);
-                    }}
-                    className="text-xs px-2 py-0.5 rounded bg-blue-500 text-white"
-                  >
-                    保存
-                  </button>
-                </span>
-              ) : (
-                <button
-                  onClick={() => { setEditingFolderTagCount(true); setFolderTagCountInput(String(folderTagCount)); }}
-                  className="text-xs px-2 py-1 self-center text-gray-400 hover:text-gray-600"
-                  title="本数を設定"
-                >
-                  ⚙️ {folderTagCount}本まで
-                </button>
+          {COLOR_TABS.map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.value
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.emoji} {tab.label}
+              {months[tab.value] && (
+                <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
               )}
+              （{colorCounts[tab.value]}）
+            </button>
+          ))}
+          {folderTagNumbers.map(n => (
+            <button
+              key={n}
+              onClick={() => setActiveTab(`${NUMBER_TAB_PREFIX}${n}`)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === `${NUMBER_TAB_PREFIX}${n}`
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {n}本目（{folderTagCountsByNum[n] || 0}）
+            </button>
+          ))}
+          {editingFolderTagCount ? (
+            <span className="flex items-center gap-1 self-center ml-1">
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={folderTagCountInput}
+                onChange={e => setFolderTagCountInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
+                    setEditingFolderTagCount(false);
+                  }
+                  if (e.key === "Escape") setEditingFolderTagCount(false);
+                }}
+                className="w-14 border rounded px-1 py-0.5 text-xs"
+                autoFocus
+              />
               <button
-                onClick={downloadAllFolderTagsZip}
-                disabled={downloadingZip}
-                className="text-xs px-3 py-1.5 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+                onClick={() => {
+                  saveFolderTagCount(Math.max(1, Number(folderTagCountInput) || 1));
+                  setEditingFolderTagCount(false);
+                }}
+                className="text-xs px-2 py-0.5 rounded bg-blue-500 text-white"
               >
-                {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
+                保存
               </button>
-            </>
+            </span>
           ) : (
-            COLOR_TABS.map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
-                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.value
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab.emoji} {tab.label}
-                {months[tab.value] && (
-                  <span className="ml-1 text-xs font-normal text-orange-500">{months[tab.value]}</span>
-                )}
-                （{colorCounts[tab.value]}）
-              </button>
-            ))
+            <button
+              onClick={() => { setEditingFolderTagCount(true); setFolderTagCountInput(String(folderTagCount)); }}
+              className="text-xs px-2 py-1 self-center text-gray-400 hover:text-gray-600"
+              title="本数を設定"
+            >
+              ⚙️ {folderTagCount}本まで
+            </button>
           )}
+          <button
+            onClick={downloadAllFolderTagsZip}
+            disabled={downloadingZip}
+            className="text-xs px-3 py-1.5 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+          >
+            {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード"}
+          </button>
           <button
             onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
             className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
@@ -1248,7 +1232,7 @@ const handleMonthSave = useCallback(async (color: string) => {
           transition: "transform 0.3s ease",
         }}
       >
-        {!folderModeOn && COLOR_TABS.map(c => (
+        {COLOR_TABS.map(c => (
           <button
             key={c.value}
             onClick={() => {
@@ -1268,18 +1252,16 @@ const handleMonthSave = useCallback(async (color: string) => {
             {c.emoji} {c.label}
           </button>
         ))}
-        {!folderModeOn && (
-          <button
-            onClick={() => setConfirmDialog({
-              message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
-              onConfirm: () => applyColor(null),
-            })}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
-          >
-            ⬜ 色を消す
-          </button>
-        )}
-        {folderModeOn && folderTagNumbers.map(n => (
+        <button
+          onClick={() => setConfirmDialog({
+            message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
+            onConfirm: () => applyColor(null),
+          })}
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+        >
+          ⬜ 色を消す
+        </button>
+        {folderTagNumbers.map(n => (
           <button
             key={n}
             onClick={() => applyFolderTag(n)}
@@ -1288,14 +1270,12 @@ const handleMonthSave = useCallback(async (color: string) => {
             🔢 {n}本目
           </button>
         ))}
-        {folderModeOn && (
-          <button
-            onClick={() => applyFolderTag(null)}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
-          >
-            ⬜ 本目を消す
-          </button>
-        )}
+        <button
+          onClick={() => applyFolderTag(null)}
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+        >
+          ⬜ 本目を消す
+        </button>
         {selected.size === 1 && (
           <button
             onClick={() => openMemoModal([...selected][0])}
