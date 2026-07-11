@@ -110,12 +110,27 @@ export async function POST(request: Request) {
   // 同時にメモリへ保持することがない。画像は既に圧縮済みの形式（JPEG等）なので
   // 再圧縮のメリットが薄く、圧縮処理自体のメモリ・CPU負荷を避けるためSTOREを使う。
   const zip = new JSZip();
+  let zippedCount = 0;
   for (const { fileId, path } of validFiles) {
-    const res = await drive.files.get(
-      { fileId, alt: "media", supportsAllDrives: true },
-      { responseType: "stream" }
-    );
-    zip.file(path, res.data as unknown as NodeJS.ReadableStream, { compression: "STORE" });
+    try {
+      const res = await drive.files.get(
+        { fileId, alt: "media", supportsAllDrives: true },
+        { responseType: "stream" }
+      );
+      zip.file(path, res.data as unknown as NodeJS.ReadableStream, { compression: "STORE" });
+      zippedCount++;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error("[download-zip] media fetch failed:", fileId, message);
+      failedCount++;
+    }
+  }
+
+  if (zippedCount === 0) {
+    return new Response(JSON.stringify({ error: "全てのファイルの取得に失敗しました" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const nodeStream = zip.generateNodeStream({ type: "nodebuffer", streamFiles: true });
