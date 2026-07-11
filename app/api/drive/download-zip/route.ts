@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { google } from "googleapis";
 import JSZip from "jszip";
-import { Readable } from "node:stream";
 
 type ZipFileRequest = { fileId: string; name?: string; folderLabel?: string };
 
@@ -73,8 +72,11 @@ export async function POST(request: Request) {
   // 画像本体は、実績のある方式（arraybufferで並列取得）のまま取得する。
   // ストリーム取得（responseType:"stream"）に切り替えたところ、本番環境で
   // 1ファイルの取得に20〜30秒以上かかる異常な遅さが確認されたため撤回した。
-  // メモリ対策は「並列数を下げる」「圧縮しない（STORE）」「ZIP出力そのものは
-  // ストリーミングで返す（全体を1つの巨大バッファにしない）」の組み合わせで行う。
+  // ZIP出力側もgenerateNodeStream+Readable.toWebでストリーミングを試したが、
+  // ローカルでは正常なZIPが生成できる一方、本番環境でダウンロードしたZIPが
+  // 壊れる事象が発生したため撤回。ストリーミングレスポンス自体がこの環境と
+  // 相性が悪い可能性があるため、出力も含めて実績のある一括生成方式に戻す。
+  // メモリ対策は「並列数を下げる」「圧縮しない（STORE）」のみで行う。
   const zip = new JSZip();
   const usedPaths = new Set<string>();
   let failedCount = 0;
@@ -114,13 +116,9 @@ export async function POST(request: Request) {
     });
   }
 
-  // ZIP出力自体はストリーミングで返す。generateAsync({type:"arraybuffer"})だと
-  // 圧縮済みZIP全体をもう1つの巨大バッファとしてメモリに保持することになるため、
-  // それを避ける。
-  const nodeStream = zip.generateNodeStream({ type: "nodebuffer", streamFiles: true });
-  const webStream = Readable.toWeb(nodeStream as Readable) as ReadableStream;
+  const buffer = await zip.generateAsync({ type: "arraybuffer" });
 
-  return new Response(webStream, {
+  return new Response(buffer, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="images.zip"`,
