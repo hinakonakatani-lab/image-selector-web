@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { google } from "googleapis";
 import JSZip from "jszip";
+import { Readable } from "node:stream";
 
 type ZipFileRequest = { fileId: string; name?: string; folderLabel?: string };
 
@@ -67,9 +68,13 @@ export async function POST(request: Request) {
   oauth2Client.setCredentials({ access_token: session.accessToken });
   const drive = google.drive({ version: "v3", auth: oauth2Client });
 
-  const zip = new JSZip();
+  // 1段階目: メタデータ（ファイル名）だけを先に取得してアクセス可否を確認する。
+  // 画像本体はまだ取得しない — メモリに全画像を同時に保持するとVercel関数の
+  // メモリ上限を超えてOOMになるため（実際に大きめの写真セットで発生した障害）、
+  // 本体の取得はZIP生成時にストリームとして少しずつ行う。
   const usedPaths = new Set<string>();
   let failedCount = 0;
+  const validFiles: { fileId: string; path: string }[] = [];
 
   await mapWithConcurrency(files, CONCURRENCY, async (file) => {
     try {
@@ -83,32 +88,40 @@ export async function POST(request: Request) {
       const ext = dotIndex >= 0 ? originalName.slice(dotIndex) : "";
       const baseName = file.name ? `${file.name}${ext}` : originalName;
 
-      const res = await drive.files.get(
-        { fileId: file.fileId, alt: "media", supportsAllDrives: true },
-        { responseType: "arraybuffer" }
-      );
-      const data = res.data as ArrayBuffer;
-
       const rawPath = file.folderLabel ? `${file.folderLabel}/${baseName}` : baseName;
       const path = dedupePath(rawPath, usedPaths);
-      zip.file(path, data);
+      validFiles.push({ fileId: file.fileId, path });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
-      console.error("[download-zip] failed:", file.fileId, message);
+      console.error("[download-zip] metadata failed:", file.fileId, message);
       failedCount++;
     }
   });
 
-  if (failedCount === files.length) {
+  if (validFiles.length === 0) {
     return new Response(JSON.stringify({ error: "全てのファイルの取得に失敗しました" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const buffer = await zip.generateAsync({ type: "arraybuffer" });
+  // 2段階目: 各ファイルの本体をストリームのままZIPに登録する。実際のダウンロードは
+  // generateNodeStream()が読み出す際に少しずつ行われるため、全ファイルの生データを
+  // 同時にメモリへ保持することがない。画像は既に圧縮済みの形式（JPEG等）なので
+  // 再圧縮のメリットが薄く、圧縮処理自体のメモリ・CPU負荷を避けるためSTOREを使う。
+  const zip = new JSZip();
+  for (const { fileId, path } of validFiles) {
+    const res = await drive.files.get(
+      { fileId, alt: "media", supportsAllDrives: true },
+      { responseType: "stream" }
+    );
+    zip.file(path, res.data as unknown as NodeJS.ReadableStream, { compression: "STORE" });
+  }
 
-  return new Response(buffer, {
+  const nodeStream = zip.generateNodeStream({ type: "nodebuffer", streamFiles: true });
+  const webStream = Readable.toWeb(nodeStream as Readable) as ReadableStream;
+
+  return new Response(webStream, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="images.zip"`,
