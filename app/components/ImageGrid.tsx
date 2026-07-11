@@ -558,6 +558,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
         .map(({ image }) => ({
           fileId: image.id,
           name: renameMap[image.id] || undefined,
+          folderLabel: `${n}本目`,
         }));
       await downloadZipBlob(files, `${n}本目.zip`);
       // ブラウザが立て続けの複数ダウンロードをブロックしないよう少し間隔を空ける
@@ -703,6 +704,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       .map(image => ({
         fileId: image.id,
         name: renameMap[image.id] || undefined,
+        folderLabel: `${n}本目`,
       }));
     setDownloadingZip(true);
     await downloadZipBlob(files, `${n}本目.zip`);
