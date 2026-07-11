@@ -2,10 +2,6 @@ import { auth } from "@/auth";
 import { google } from "googleapis";
 import JSZip from "jszip";
 
-// この関数の実行時間上限を伸ばす（プランの上限が優先されるが、既定より長く許可する）。
-// メモリ割り当てはvercel.jsonの functions 設定側で行う。
-export const maxDuration = 60;
-
 type ZipFileRequest = { fileId: string; name?: string; folderLabel?: string };
 
 // 以前は8並列だった。並列数が多いほど、同時にメモリへ保持する画像バッファが
