@@ -14,7 +14,7 @@ export const ADMIN_EMAILS: string[] = [
 ];
 
 export const RESTRICTED_EMAILS: string[] = [
-  // 例: "someone@example.com",
+  "h.nakatani04@gmail.com",
 ];
 
 export type Role = "admin" | "general" | "restricted";
