@@ -63,6 +63,7 @@ export const GENERAL_EMAILS: string[] = [
   "maki.shigemori@shintairiku.jp",
   "tsukasa.matsunaga@shintairiku.jp",
   "yusuke.tokunaga@shintairiku.jp",
+  "h.nakatani04@gmail.com",
 ];
 
 export type Role = "admin" | "general" | "restricted";
