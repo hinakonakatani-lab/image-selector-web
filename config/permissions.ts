@@ -7,7 +7,7 @@
 // ①管理者: 全機能を使用できます
 // ②一般ユーザー（下記どちらのリストにも含まれないユーザー）:
 //    「全データBK(管理者用)」以外の全機能を使用できます
-// ③制限付与ユーザー: 「インポート」「色タブ」関連の機能が使用できません
+// ③制限付与ユーザー: 「インポート」「色タブ」「メモ」「本数モード」関連の機能が使用できません
 
 export const ADMIN_EMAILS: string[] = [
   "hinako.nakatani@shintairiku.jp",
@@ -40,5 +40,13 @@ export function canImport(role: Role): boolean {
 }
 
 export function canUseColorFeatures(role: Role): boolean {
+  return role !== "restricted";
+}
+
+export function canEditMemos(role: Role): boolean {
+  return role !== "restricted";
+}
+
+export function canUseFolderTagFeature(role: Role): boolean {
   return role !== "restricted";
 }
