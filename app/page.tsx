@@ -14,7 +14,7 @@ import ManualColorPicker from "@/app/components/ManualColorPicker";
 import FolderTagVisibilityToggle from "@/app/components/FolderTagVisibilityToggle";
 import ThemeAnalysis from "@/app/components/ThemeAnalysis";
 import type { DriveFolder } from "@/app/api/drive/route";
-import { getRole, canImport as canImportFn, canUseColorFeatures } from "@/config/permissions";
+import { getRole, canImport as canImportFn, canUseColorFeatures, canEditMemos, canUseFolderTagFeature } from "@/config/permissions";
 
 type Bookmark = { id: string; name: string; folderId: string };
 type MemoEntry = { text: string; authorName: string; updatedAt: string };
@@ -94,6 +94,8 @@ export default async function Home({
   const isAdmin = role === "admin";
   const canImport = canImportFn(role);
   const canUseColor = canUseColorFeatures(role);
+  const canEditMemo = canEditMemos(role);
+  const canUseFolderTag = canUseFolderTagFeature(role);
 
   // 未ログイン or トークン更新失敗 → ログイン画面
   if (!session || session.error === "RefreshAccessTokenError") {
@@ -209,7 +211,7 @@ export default async function Home({
           )}
           <ExportImport folderId={folderId || undefined} isAdmin={isAdmin} canImport={canImport} />
           {canUseColor && <ManualColorPicker folderId={folderId} />}
-          <FolderTagVisibilityToggle />
+          {canUseFolderTag && <FolderTagVisibilityToggle />}
           <span className="text-sm text-gray-500">{session.user?.email}</span>
           <form
             action={async () => {
@@ -293,6 +295,8 @@ export default async function Home({
             initialRenameMap={renameMap}
             userName={session.user?.name || session.user?.email || ""}
             canUseColor={canUseColor}
+            canEditMemo={canEditMemo}
+            canUseFolderTag={canUseFolderTag}
           />
         )}
 
