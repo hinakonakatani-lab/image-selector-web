@@ -61,9 +61,10 @@ type Props = {
   initialFolderTags: Record<string, number>;
   initialRenameMap: Record<string, string>;
   userName: string;
+  canUseColor?: boolean;
 };
 
-export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName }: Props) {
+export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName, canUseColor = true }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
   const [folderTags, setFolderTags] = useState<Record<string, number>>(initialFolderTags);
@@ -852,7 +853,7 @@ const handleMonthSave = useCallback(async (color: string) => {
               <span className="ml-1 text-xs font-normal text-orange-500">（{lastRandomIds.size}枚）</span>
             )}
           </button>
-          {COLOR_TABS.map(tab => (
+          {canUseColor && COLOR_TABS.map(tab => (
             <button
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
@@ -869,12 +870,14 @@ const handleMonthSave = useCallback(async (color: string) => {
               （{colorCounts[tab.value]}）
             </button>
           ))}
-          <button
-            onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
-            className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
-          >
-            📥 インポート
-          </button>
+          {canUseColor && (
+            <button
+              onClick={() => { setShowImport(v => !v); setImportStatus(""); }}
+              className="ml-auto self-center text-xs px-2 py-1 rounded border border-gray-300 hover:border-gray-400 text-gray-500"
+            >
+              📥 インポート
+            </button>
+          )}
         </div>
         {showFolderTagUI && (
           <div className="flex flex-wrap items-center gap-1 border-b py-1 bg-purple-50/60">
@@ -962,7 +965,7 @@ const handleMonthSave = useCallback(async (color: string) => {
       </div>
 
       {/* インポートパネル */}
-      {showImport && (
+      {canUseColor && showImport && (
         <div className="mb-4 mt-2 p-4 bg-gray-50 border rounded-lg">
           <p className="text-sm text-gray-600 mb-2 font-medium">スプレッドシートの色データを貼り付けてください：</p>
           <p className="text-xs text-gray-400 mb-2">形式：ファイルID（スペース）#カラーコード　を1行ずつ</p>
@@ -1258,7 +1261,7 @@ const handleMonthSave = useCallback(async (color: string) => {
           transition: "transform 0.3s ease",
         }}
       >
-        {COLOR_TABS.map(c => (
+        {canUseColor && COLOR_TABS.map(c => (
           <button
             key={c.value}
             onClick={() => {
@@ -1278,15 +1281,17 @@ const handleMonthSave = useCallback(async (color: string) => {
             {c.emoji} {c.label}
           </button>
         ))}
-        <button
-          onClick={() => setConfirmDialog({
-            message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
-            onConfirm: () => applyColor(null),
-          })}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
-        >
-          ⬜ 色を消す
-        </button>
+        {canUseColor && (
+          <button
+            onClick={() => setConfirmDialog({
+              message: `選択中の ${selected.size}枚 の色を消します。よろしいですか？`,
+              onConfirm: () => applyColor(null),
+            })}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
+          >
+            ⬜ 色を消す
+          </button>
+        )}
         {showFolderTagUI && folderTagNumbers.map(n => (
           <button
             key={n}
