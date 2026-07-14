@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getRole, canUseColorFeatures } from "@/config/permissions";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
@@ -24,6 +25,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
+  }
+  if (!canUseColorFeatures(getRole(session.user.email))) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
   const { fileUrl, color, folderId } = await request.json();

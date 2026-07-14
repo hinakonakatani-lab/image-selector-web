@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getRole, canUseColorFeatures } from "@/config/permissions";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
   }
+  if (!canUseColorFeatures(getRole(session.user.email))) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const folderId = searchParams.get("folderId");
@@ -37,6 +41,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
+  }
+  if (!canUseColorFeatures(getRole(session.user.email))) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
   const { folderId, fileId, fileIds, color } = await request.json();
@@ -70,6 +77,9 @@ export async function PUT(request: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
+  }
+  if (!canUseColorFeatures(getRole(session.user.email))) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
   const { folderId, importColors } = await request.json();
