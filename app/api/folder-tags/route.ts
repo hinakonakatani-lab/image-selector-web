@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getRole, canUseFolderTagFeature } from "@/config/permissions";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "未ログイン" }, { status: 401 });
+  }
+  if (!canUseFolderTagFeature(getRole(session.user.email))) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
   const { folderId, fileId, fileIds, tag } = await request.json();
