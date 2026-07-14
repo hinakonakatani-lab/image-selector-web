@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-export default function ExportImport({ folderId, isAdmin }: { folderId?: string; isAdmin?: boolean }) {
+export default function ExportImport({ folderId, isAdmin, canImport }: { folderId?: string; isAdmin?: boolean; canImport?: boolean }) {
   const [status, setStatus] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -90,19 +90,21 @@ export default function ExportImport({ folderId, isAdmin }: { folderId?: string;
           💾 このフォルダをバックアップ
         </button>
       )}
-      <label
-        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-        title="バックアップファイルから復元"
-      >
-        📂 復元
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".json"
-          className="hidden"
-          onChange={handleImport}
-        />
-      </label>
+      {canImport && (
+        <label
+          className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+          title="バックアップファイルから復元"
+        >
+          📂 復元
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
+        </label>
+      )}
       {status && <span className="text-xs text-gray-600">{status}</span>}
     </div>
   );
