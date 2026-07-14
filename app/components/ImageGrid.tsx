@@ -62,9 +62,11 @@ type Props = {
   initialRenameMap: Record<string, string>;
   userName: string;
   canUseColor?: boolean;
+  canEditMemo?: boolean;
+  canUseFolderTag?: boolean;
 };
 
-export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName, canUseColor = true }: Props) {
+export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName, canUseColor = true, canEditMemo = true, canUseFolderTag = true }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
   const [folderTags, setFolderTags] = useState<Record<string, number>>(initialFolderTags);
@@ -72,6 +74,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
   const [downloadingZip, setDownloadingZip] = useState(false);
   const showFolderTagUI = useFolderTagVisibility();
+  const folderTagUIEnabled = showFolderTagUI && canUseFolderTag;
   const [editingFolderTagCount, setEditingFolderTagCount] = useState(false);
   const [folderTagCountInput, setFolderTagCountInput] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -129,10 +132,10 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
 
   // 本数振り分けUIがOFFになったら、本目タブを表示中なら「全て」に戻す
   useEffect(() => {
-    if (!showFolderTagUI) {
+    if (!folderTagUIEnabled) {
       setActiveTab(current => (current.startsWith(NUMBER_TAB_PREFIX) ? "all" : current));
     }
-  }, [showFolderTagUI]);
+  }, [folderTagUIEnabled]);
 
   // ラバーバンド選択のmousemove / mouseup / エッジスクロールをwindowで管理
   useEffect(() => {
@@ -782,17 +785,24 @@ const handleMonthSave = useCallback(async (color: string) => {
           )}
         </div>
         {/* メモ */}
-        <button
-          className={`w-full text-left text-xs px-1 py-0.5 truncate transition-colors ${
-            memo
-              ? "bg-yellow-50 text-gray-700 hover:bg-yellow-100"
-              : "text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-gray-50"
-          }`}
-          onClick={() => openMemoModal(image.id)}
-          title={memo?.text}
-        >
-          {memo ? `📝 ${memo.text}` : "＋ メモ"}
-        </button>
+        {memo ? (
+          <button
+            className={`w-full text-left text-xs px-1 py-0.5 truncate transition-colors bg-yellow-50 text-gray-700 ${
+              canEditMemo ? "hover:bg-yellow-100" : "cursor-default"
+            }`}
+            onClick={canEditMemo ? () => openMemoModal(image.id) : undefined}
+            title={memo.text}
+          >
+            📝 {memo.text}
+          </button>
+        ) : canEditMemo ? (
+          <button
+            className="w-full text-left text-xs px-1 py-0.5 truncate transition-colors text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-gray-50"
+            onClick={() => openMemoModal(image.id)}
+          >
+            ＋ メモ
+          </button>
+        ) : null}
         {path && (
           <div className="text-xs text-gray-600 px-1 py-0.5 bg-white truncate" title={path}>
             📁 {path}
@@ -879,7 +889,7 @@ const handleMonthSave = useCallback(async (color: string) => {
             </button>
           )}
         </div>
-        {showFolderTagUI && (
+        {folderTagUIEnabled && (
           <div className="flex flex-wrap items-center gap-1 border-b py-1 bg-purple-50/60">
             {folderTagNumbers.map(n => (
               <button
@@ -1292,7 +1302,7 @@ const handleMonthSave = useCallback(async (color: string) => {
             ⬜ 色を消す
           </button>
         )}
-        {showFolderTagUI && folderTagNumbers.map(n => (
+        {folderTagUIEnabled && folderTagNumbers.map(n => (
           <button
             key={n}
             onClick={() => applyFolderTag(n)}
@@ -1301,7 +1311,7 @@ const handleMonthSave = useCallback(async (color: string) => {
             🔢 {n}本目
           </button>
         ))}
-        {showFolderTagUI && (
+        {folderTagUIEnabled && (
           <button
             onClick={() => applyFolderTag(null)}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-300 hover:bg-gray-50 text-gray-600"
@@ -1309,7 +1319,7 @@ const handleMonthSave = useCallback(async (color: string) => {
             ⬜ 本目を消す
           </button>
         )}
-        {selected.size === 1 && (
+        {canEditMemo && selected.size === 1 && (
           <button
             onClick={() => openMemoModal([...selected][0])}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-yellow-700 border border-yellow-300 hover:bg-yellow-50"
@@ -1317,7 +1327,7 @@ const handleMonthSave = useCallback(async (color: string) => {
             📝 {memos[[...selected][0]] ? "メモ編集" : "メモ追加"}
           </button>
         )}
-        {selectedWithMemos > 0 && selected.size > 1 && (
+        {canEditMemo && selectedWithMemos > 0 && selected.size > 1 && (
           <button
             onClick={() => setConfirmDialog({ message: `選択中の ${selectedWithMemos}件 のメモを削除します。よろしいですか？`, onConfirm: handleBulkDeleteMemos })}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-yellow-700 border border-yellow-300 hover:bg-yellow-50"
