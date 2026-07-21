@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis";
-import { labelsKey, LABELS_SCAN_PATTERN } from "./keys.mjs";
+import { labelsKey, LABELS_SCAN_PATTERN, isScanComplete } from "./keys.mjs";
 
 export const mergeLabels = (existing = {}, incoming = {}) => ({ ...existing, ...incoming });
 
@@ -20,7 +20,7 @@ export async function readAllLabels(client) {
       const map = (await client.get(key)) || {};
       for (const [fileId, label] of Object.entries(map)) out.push({ folderId, fileId, label });
     }
-  } while (cursor !== "0");
+  } while (!isScanComplete(cursor));
   return out;
 }
 

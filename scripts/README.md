@@ -105,6 +105,17 @@ Drive integration is **read-only**:
 - Only `read_file_content` and folder traversal are permitted
 - Redis keys are namespaced (`labels:shared:*`, `vocab:*`) and scanned atomically
 
+## Before first production run (deferred live checks)
+
+The following checks require live credentials/environment and have **not** been performed yet. Do not treat this workflow as production-verified until they are done:
+
+- **(a) Live Redis round-trip:** run `node scripts/write-labels.mjs <folderId>` with a real `KV_REST_API_URL` / `KV_REST_API_TOKEN`, then `node scripts/read-labels.mjs` and confirm the written labels come back. This also exercises `readAllLabels`'s SCAN loop against a real Upstash cursor (numeric vs string `"0"`).
+- **(b) Path 2 verification spike:** confirm OAuth `thumbnailLink=s1024` fetch actually works end-to-end against a real Drive file. If it fails or is unreliable, fall back to Path 1 (MCP `read_file_content` download → `sips` downscale → `Read`), which is the currently proven path.
+- **(c) Small real-folder run:** run a small `tag-images` pass and a small `collect-by-theme` run against one real Drive folder to confirm the full pipeline (not just unit tests) behaves as expected.
+- **(d) Drive write-tool deny enforcement:** after reloading Claude Code, confirm `mcp__claude_ai_Google_Drive__create_file` and `mcp__claude_ai_Google_Drive__copy_file` are actually denied per `.claude/settings.json` (not just configured).
+
+These are safety/readiness follow-ups, not blockers for the unit-tested library code — but none of them are done yet.
+
 ## Phase C: App Integration (Out of Scope)
 
 Future work (planned separately):
@@ -120,7 +131,7 @@ Run all unit tests (env-free):
 node --test scripts/lib/*.test.mjs
 ```
 
-Expected output: 20 passing tests across 8 modules.
+Expected output: 22 passing tests across 8 modules.
 
 Each module exports public functions and includes a corresponding `.test.mjs` file with comprehensive coverage:
 - **keys.test.mjs**: Redis key naming
