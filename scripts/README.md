@@ -1,149 +1,179 @@
-# Scripts: Image Tagging & Collection Workflow
+# scripts: 画像タグ付け＆テーマ収集ワークフロー
 
-This directory contains the core library modules, command-line utilities, and integrations for the image tagging, vocabulary normalization, and collection workflow.
+このディレクトリには、画像のタグ付け・語彙の表記ゆれ統一・テーマ収集を行うための、
+コアライブラリ・コマンドラインツール・スキル連携が入っています。
 
-## Environment Variables
+## 環境変数
 
-The scripts require credentials for Google Drive and Upstash Redis. Set these in your `.env` or shell:
+スクリプトは実行時に `process.env` から認証情報を読みます。
 
-### Redis / Vercel KV (Required)
-- **`KV_REST_API_URL`**: REST endpoint for your Upstash Redis instance
-- **`KV_REST_API_TOKEN`**: Bearer token for Upstash Redis
+**方針（重要）: トークンをローカルに一切保存しません。**
+Vercel に設定済みの環境変数を、**実行のたびに Vercel からメモリに取得**して使います。
+`.env` / `.env.local` などのファイルにトークンを書き出すことはしません（`vercel env pull <ファイル名>`
+のようにファイルへ落とす使い方は禁止）。
 
-**How to obtain:**
-- Run `vercel env pull` in the project root (requires Vercel CLI and project link)
-- Or: Log in to [Upstash Console](https://console.upstash.com), select your Redis database, and copy the REST API URL and token from the "REST API" section
+### 使う環境変数
 
-### Google Drive OAuth (Required for Path 2; optional for Path 1)
-- **`GOOGLE_CLIENT_ID`**: OAuth 2.0 client ID
-- **`GOOGLE_CLIENT_SECRET`**: OAuth 2.0 client secret
-- **`GOOGLE_REFRESH_TOKEN`**: Refresh token for persistent authentication
+**Redis / Vercel KV（必須）**
+- **`KV_REST_API_URL`**: Upstash Redis の REST エンドポイント
+- **`KV_REST_API_TOKEN`**: Upstash Redis の書き込み用トークン
 
-**How to obtain:**
-- Create a service account or OAuth 2.0 credential in [Google Cloud Console](https://console.cloud.google.com)
-- For refresh tokens: Use [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) with the Google Drive API (`https://www.googleapis.com/auth/drive.readonly`)
-- Select "Exchange authorization code for tokens" to generate a refresh token
+**Google Drive OAuth（Path 2 では必須／Path 1 のみなら不要）**
+- **`GOOGLE_CLIENT_ID`** / **`GOOGLE_CLIENT_SECRET`** / **`GOOGLE_REFRESH_TOKEN`**
 
-## Skills
+これらはすべて **Vercel のプロジェクト環境変数**に設定しておき、ローカルには保存しません。
+（Vercel ダッシュボード → プロジェクト → Settings → Environment Variables で確認・設定）
 
-### `tag-images` (Task 10)
-**Purpose:** Vision-tag Google Drive images with schema labels (scene, place, subject, etc.) and write results to Redis under `labels:shared:<folderId>`.
+### ディスクに残さず Vercel から取得して実行する
 
-- Recursively traverses Drive folder tree
-- Fetches each image via MCP (Path 1) or OAuth thumbnailLink (Path 2 — live verification deferred)
-- Downscales to 1024px long edge via macOS `sips`
-- Invokes Claude vision API for multi-field tagging
-- Uses disposable subagents for concurrent processing
-- Writes labels incrementally to Redis (idempotent: no re-tagging on rerun)
+`vercel env pull` の出力先を `/dev/stdout` にすると、dotenv 形式が標準出力（パイプ＝メモリ）に
+流れ、実ファイルには書き込まれません。これをそのシェルに読み込み、コマンドを実行します：
 
-### `normalize-vocab` (Task 12)
-**Purpose:** Canonicalize tag vocabulary (place names, subject categories) with human approval workflow.
+```bash
+# トークンをファイルに残さず、Vercel からメモリに取り込んで実行する例
+set -a
+source <(vercel env pull --environment=production /dev/stdout 2>/dev/null)
+set +a
+node scripts/read-labels.mjs        # 以降このシェルの子プロセスは env を継承
+```
 
-- Collects all place/subject/freeTag values from existing Redis labels
-- Identifies duplicates, typos, and synonyms
-- Builds merge map with human decision approval
-- Applies merges across all labeled images atomically
-- Ensures vocabulary consistency before collection
+- `--environment` は、対象トークンを設定した環境に合わせる（`production` / `preview` / `development`）。
+- 取り込んだ値はそのシェルセッションのメモリ内だけに存在し、ディスクには残りません。
+- 別コマンドを続けて実行する場合も、同じシェルで `source` 済みなら再取得は不要。
+- 初回は `vercel login` / `vercel link` が必要な場合があります（トークン自体はローカルに保存されません）。
 
-### `collect-by-theme` (Task 13)
-**Purpose:** Build structured image collections by theme using keyword search + semantic refinement.
+## スキル
 
-- Two-stage filtering: keyword match (place, subject, scene criteria) then semantic validation
-- Generates gallery HTML with theme title, image count, and tagged grid
-- Outputs optimized metadata for app integration (Path 3: future — Phase C)
-- Supports both MCP-downloaded images (Path 1) and OAuth thumbnailLink URLs (Path 2)
+### `tag-images`（Task 10）
+**目的:** Google Drive の画像を vision で見て、6軸のタグ（人物有無・屋内外・ショット・
+場所・被写体など）を付け、Redis の `labels:shared:<folderId>` に保存する。
 
-## Library Modules
+- 指定フォルダ配下を再帰的に辿る
+- 各画像を MCP（Path 1）または OAuth の thumbnailLink（Path 2／ライブ検証は保留中）で取得
+- macOS の `sips` で長辺 1024px に縮小
+- Claude の vision で複数項目のタグを判定
+- 使い捨てサブエージェントで並列処理し、親のコンテキストを汚さない
+- タグは都度 Redis に書き込む（冪等：再実行しても既にタグ済みの画像は処理しない）
 
-All modules in `scripts/lib/` are env-free and fully tested:
+### `normalize-vocab`（Task 12）
+**目的:** タグ語彙（場所名・被写体カテゴリなど）の表記ゆれを、人間承認つきで統一する。
 
-- **`keys.mjs`**: Redis key naming conventions (labels:shared:*, vocab:*, scan patterns)
-- **`tag-schema.mjs`**: Label structure validation (fixed axes: hasPerson, scene, shot; arrays: subjects, freeTags, tags)
-- **`drive-tree.mjs`**: Google Drive tree traversal (folder/image detection, grouping by parent)
-- **`filter.mjs`**: Apply criteria filters to labeled items (scene, hasPerson, shot, place, subject partial matches)
-- **`vocab.mjs`**: Collect vocabulary frequencies and apply merge maps atomically
-- **`gallery.mjs`**: Render filtered images as HTML grid with escaped tags and lazy loading
-- **`image.mjs`**: Downscale images to long-edge 1024px via `sips` (macOS native)
-- **`redis.mjs`**: Upstash Redis client; read all labels (SCAN), write per-folder (atomic merge)
+- 既存の Redis ラベルから place / subjects / freeTags の値をすべて集計
+- 重複・誤記・同義語を洗い出す
+- 統合マップを作り、人間の承認を得る
+- 承認された分をラベル全体に適用（マージ方式で、件数は変えず値だけ統一）
+- 収集の前に語彙の一貫性を担保する
 
-## Command-Line Tools
+### `collect-by-theme`（Task 13）
+**目的:** テーマ（キーワード）から、タグ済み画像を集めてギャラリーHTMLで提案する。
 
-All CLIs output JSON for pipeline composition:
+- 2段構えの絞り込み：まず条件マッチ（場所・被写体・屋内外など）→ 次に意味的な精査
+- テーマ名・件数・タグ付きグリッドを含むギャラリーHTMLを生成
+- 読み取り専用（Redis には書き込まない）
+- Path 1（MCP でDL）／Path 2（OAuth の thumbnailLink）どちらの画像取得にも対応
 
-- **`node scripts/list-images.mjs <rootFolderId>`**  
-  Walk Google Drive tree from rootFolderId; output `{ byLeaf: { parentId: [{ id, title }, ...] }, thumbById: { id: thumbnailLink } }`
+## ライブラリモジュール
 
-- **`node scripts/read-labels.mjs`**  
-  Read all labels:shared:* from Redis; output `[{ folderId, fileId, label }, ...]`
+`scripts/lib/` のモジュールはすべて env 不要・テスト済みです：
 
-- **`node scripts/write-labels.mjs <folderId>`**  
-  Write labels to Redis for a folder (stdin: `{ fileId: label, ... }`); merge with existing (no overwrites)
+- **`keys.mjs`**: Redis のキー命名規則（labels:shared:* / vocab:* / scan パターン、SCAN完了判定）
+- **`tag-schema.mjs`**: ラベル構造の検証（固定軸: hasPerson・scene・shot／配列: subjects・freeTags・tags）
+- **`drive-tree.mjs`**: Drive ツリーの走査（フォルダ/画像の判定、親フォルダ単位のグルーピング）
+- **`filter.mjs`**: ラベル群への条件フィルタ（scene・hasPerson・shot、place/subject は部分一致）
+- **`vocab.mjs`**: 語彙の出現頻度集計と、統合マップの適用（非破壊）
+- **`gallery.mjs`**: 絞り込んだ画像を HTML グリッドに描画（タグをエスケープ・遅延読み込み）
+- **`image.mjs`**: `sips`（macOS 標準）で画像を長辺 1024px に縮小
+- **`redis.mjs`**: Upstash Redis クライアント。全ラベルの読み取り（SCAN）とフォルダ単位の書き込み（マージ）
 
-- **`node scripts/vocab-report.mjs [place|subjects|freeTags]`**  
-  Collect vocabulary from all labels; output `[[value, frequency], ...]` sorted by frequency desc
+## コマンドラインツール
 
-- **`node scripts/build-gallery.mjs <theme> <outHtmlPath>`**  
-  Render gallery HTML from stdin tiles (stdin: `[{ title, viewUrl, thumbPath, label }, ...]`)
+各 CLI はパイプ連携できるよう JSON を出力します：
 
-## Image Access Paths
+- **`node scripts/list-images.mjs <rootFolderId>`**
+  rootFolderId 配下の Drive ツリーを走査し、`{ byLeaf: { parentId: [{ id, title }, ...] }, thumbById: { id: thumbnailLink } }` を出力
 
-Images are accessed and standardized to long-edge 1024px:
+- **`node scripts/read-labels.mjs`**
+  Redis の labels:shared:* をすべて読み取り、`[{ folderId, fileId, label }, ...]` を出力
 
-- **Path 1 (Proven Fallback):** MCP `read_file_content` downloads → local downscale via `sips`  
-  Status: ✅ Tested; works offline; no live credentials required
-  
-- **Path 2 (Intended Primary):** OAuth `thumbnailLink` with `=s1024` suffix  
-  Status: ⚠️ Deferred verification pending Google OAuth credentials in prod  
-  Will replace Path 1 once live OAuth is configured
-  
-Vision images (Claude API input) are standardized to 1024px long edge in all paths.
+- **`node scripts/write-labels.mjs <folderId>`**
+  指定フォルダのラベルを Redis に書き込む（標準入力: `{ fileId: label, ... }`）。既存とマージ（上書き消去しない）
 
-## Security
+- **`node scripts/vocab-report.mjs [place|subjects|freeTags]`**
+  全ラベルから語彙を集計し、`[[値, 頻度], ...]` を頻度降順で出力
 
-Drive integration is **read-only**:
-- `.claude/settings.json` explicitly denies `mcp__claude_ai_Google_Drive__create_file` and `mcp__claude_ai_Google_Drive__copy_file`
-- Only `read_file_content` and folder traversal are permitted
-- Redis keys are namespaced (`labels:shared:*`, `vocab:*`) and scanned atomically
+- **`node scripts/build-gallery.mjs <theme> <outHtmlPath>`**
+  標準入力のタイル配列からギャラリーHTMLを生成（標準入力: `[{ title, viewUrl, thumbPath, label }, ...]`）
 
-## Before first production run (deferred live checks)
+## 画像アクセス経路
 
-The following checks require live credentials/environment and have **not** been performed yet. Do not treat this workflow as production-verified until they are done:
+画像はいずれも長辺 1024px に統一して扱います：
 
-- **(a) Live Redis round-trip:** run `node scripts/write-labels.mjs <folderId>` with a real `KV_REST_API_URL` / `KV_REST_API_TOKEN`, then `node scripts/read-labels.mjs` and confirm the written labels come back. This also exercises `readAllLabels`'s SCAN loop against a real Upstash cursor (numeric vs string `"0"`).
-- **(b) Path 2 verification spike:** confirm OAuth `thumbnailLink=s1024` fetch actually works end-to-end against a real Drive file. If it fails or is unreliable, fall back to Path 1 (MCP `read_file_content` download → `sips` downscale → `Read`), which is the currently proven path.
-- **(c) Small real-folder run:** run a small `tag-images` pass and a small `collect-by-theme` run against one real Drive folder to confirm the full pipeline (not just unit tests) behaves as expected.
-- **(d) Drive write-tool deny enforcement:** after reloading Claude Code, confirm `mcp__claude_ai_Google_Drive__create_file` and `mcp__claude_ai_Google_Drive__copy_file` are actually denied per `.claude/settings.json` (not just configured).
+- **Path 1（実証済みのフォールバック）:** MCP `download_file_content` でDL → `sips` でローカル縮小
+  状態: ✅ 手動で実証済み。ライブ認証情報なしでも動く
+  （注: 写真では `read_file_content` は空を返すため使わない）
 
-These are safety/readiness follow-ups, not blockers for the unit-tested library code — but none of them are done yet.
+- **Path 2（本命）:** OAuth の `thumbnailLink` に `=s1024` を付けて取得
+  状態: ⚠️ Google OAuth 認証情報が揃うまでライブ検証は保留
+  検証が通れば Path 1 を置き換える（軽くて速いため）
 
-## Phase C: App Integration (Out of Scope)
+vision に渡す画像は、どの経路でも長辺 1024px に統一します。
 
-Future work (planned separately):
-- Shared-key labels UI component (fetch labels from Redis at runtime)
-- Collection view (display gallery + theme metadata in app)
-- Currently deferred; Phase A (schema + tagging) and Phase B (normalization + collection) are complete.
+## セキュリティ
 
-## Testing
+Drive 連携は **読み取り専用**です：
+- `.claude/settings.json` で `mcp__claude_ai_Google_Drive__create_file` と
+  `mcp__claude_ai_Google_Drive__copy_file` を明示的に deny（禁止）
+- 許可されるのは読み取りとフォルダ走査のみ
+- Redis のキーは名前空間で限定（`labels:shared:*` / `vocab:*`）
 
-Run all unit tests (env-free):
+## 本番運用の前に（保留中のライブ検証）
+
+以下はライブの認証情報・環境が必要で、**まだ実施していません**。
+これらが済むまで、このワークフローを「本番検証済み」とは扱わないでください：
+
+- **(a) Redis の往復確認:** 上記「Vercel からメモリに取得」の手順で `KV_REST_API_URL` /
+  `KV_REST_API_TOKEN` を読み込んだシェルで `node scripts/write-labels.mjs <folderId>` を実行 →
+  `node scripts/read-labels.mjs` で書き込んだラベルが返ることを確認する（トークンはファイルに残さない）。
+  実際の Upstash カーソル（数値 vs 文字列 `"0"`）に対する `readAllLabels` の SCAN ループもここで検証される。
+- **(b) Path 2 の検証スパイク:** 実際の Drive ファイルで OAuth の `thumbnailLink=s1024` 取得が
+  端から端まで動くか確認する。失敗・不安定なら Path 1（MCP `download_file_content` でDL →
+  `sips` 縮小 → `Read`）にフォールバックする（こちらは実証済み）。
+- **(c) 小規模な実フォルダ実行:** 実際の Drive フォルダ1つで `tag-images` と `collect-by-theme` を
+  小さく通し、単体テストだけでなくパイプライン全体が期待どおり動くか確認する。
+- **(d) Drive 書込ツール deny の実効確認:** Claude Code を再読み込みした後、`create_file` /
+  `copy_file` が `.claude/settings.json` どおり実際に拒否されるか（設定だけでなく実効か）確認する。
+
+これらは安全性・実運用準備のフォローアップで、単体テスト済みのライブラリコードのブロッカーでは
+ありませんが、いずれもまだ未実施です。
+
+## フェーズC：アプリ統合（対象外）
+
+別計画として今後に予定：
+- shared キーのラベルを使う UI コンポーネント（実行時に Redis からラベル取得）
+- コレクション表示（ギャラリー＋テーマ情報をアプリ内に表示）
+- 現時点では保留。フェーズA（スキーマ＋タグ付け）とフェーズB（統一＋収集）は完了済み。
+
+## テスト
+
+全単体テストを実行（env 不要）：
 
 ```bash
 node --test scripts/lib/*.test.mjs
 ```
 
-Expected output: 22 passing tests across 8 modules.
+期待される結果：8モジュールにわたり 22 件のテストが pass。
 
-Each module exports public functions and includes a corresponding `.test.mjs` file with comprehensive coverage:
-- **keys.test.mjs**: Redis key naming
-- **tag-schema.test.mjs**: Label validation and fixed-axis candidates
-- **drive-tree.test.mjs**: Tree traversal and leaf grouping
-- **filter.test.mjs**: Criteria matching (scene, place, subject)
-- **vocab.test.mjs**: Frequency collection and merge application
-- **gallery.test.mjs**: HTML rendering with escaping
-- **image.test.mjs**: Image downscaling to 1024px
-- **redis.test.mjs**: Label merging
+各モジュールは公開関数をエクスポートし、対応する `.test.mjs` を持ちます：
+- **keys.test.mjs**: Redis キー命名・SCAN完了判定
+- **tag-schema.test.mjs**: ラベル検証と固定軸の候補
+- **drive-tree.test.mjs**: ツリー走査とリーフのグルーピング
+- **filter.test.mjs**: 条件マッチ（scene・place・subject）
+- **vocab.test.mjs**: 頻度集計と統合の適用
+- **gallery.test.mjs**: エスケープつきHTML描画
+- **image.test.mjs**: 長辺1024pxへの縮小
+- **redis.test.mjs**: ラベルのマージ
 
 ---
 
-**Branch:** `feature/image-tagging-theme-collection`  
-**Tasks:** 1–14 (Phase A schema, Phase B tagging + normalization + collection)
+**ブランチ:** `feature/image-tagging-theme-collection`（main にマージ済み）
+**タスク:** 1〜14（フェーズA スキーマ、フェーズB タグ付け＋統一＋収集）

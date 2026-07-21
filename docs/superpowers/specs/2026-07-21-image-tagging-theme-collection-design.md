@@ -122,8 +122,10 @@ type ImageLabel = {
    部分失敗時も成功分は保存され、再実行で残りだけ処理。
 
 **書込手段**: ローカル Node スクリプト＋`@upstash/redis`。
-`KV_REST_API_URL` と **書込用 `KV_REST_API_TOKEN`** を環境変数で使用
-（`vercel env pull` か Upstash からローカルに取得）。
+`KV_REST_API_URL` と **書込用 `KV_REST_API_TOKEN`** を `process.env` から使用。
+**トークンはローカルに一切保存しない**方針：Vercel に設定済みの環境変数を、実行のたびに
+`source <(vercel env pull --environment=production /dev/stdout)` でメモリに取り込む
+（`.env` 等のファイルに書き出さない）。
 
 ## 7. skill② normalize-vocab（語彙の表記ゆれ統一）
 
@@ -202,7 +204,8 @@ OAuth トークンで取得できるか」を検証。通れば Path 2 を採用
    通れば採用、失敗時のみ Path 1 にフォールバック。vision 解像度は長辺 1024px 標準。
 2. `labels:shared:{folderId}` の `folderId` 単位（リーフ物件フォルダで確定予定）。
 3. バッチサイズと並列度の具体値（DL 律速の実測後に決定）。
-4. ローカルの `KV_REST_API_TOKEN`（書込）と Google OAuth トークンの取得・保管手順。
+4. 認証情報（`KV_REST_API_TOKEN` 書込・Google OAuth）は **ローカルに保存せず**、
+   実行時に Vercel からメモリへ取得（`vercel env pull /dev/stdout` を source）。保管はしない。
 5. ギャラリーHTMLのデザイン（タイル枚数・タグ表示・リンク先）。
 
 ## 14. 完了条件（フェーズB）
