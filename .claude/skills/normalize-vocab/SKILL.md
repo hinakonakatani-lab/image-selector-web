@@ -1,9 +1,15 @@
 ---
 name: normalize-vocab
-description: 蓄積したタグ語彙（place/subjects/freeTags）の表記ゆれを検出し、人間承認のうえ統合して Redis を更新する。並列タグ付けで生じたゆれを後処理で吸収する。
+description: 蓄積したタグ語彙（place/subjects/freeTags）の表記ゆれを検出し、人間承認のうえ統合する。並列タグ付けで生じたゆれを後処理で吸収する。アプリの relay API 経由で読み書き。
 ---
 
 # normalize-vocab
+
+## 前提
+- Redis へは直接アクセスしない。`scripts/read-labels.mjs` / `write-labels.mjs` はアプリの relay API（`/api/labels-shared`）経由で読み書きする。
+- 必要な設定：
+  - **`LABELS_API_BASE`**（env・非秘密）: デプロイ済みアプリの URL（例 `https://<deployment>.vercel.app`）
+  - **キーチェーン項目 `image-selector-labels-token`**: 用途限定トークン（`LABELS_INGEST_TOKEN`）
 
 ## 手順
 1. 対象フィールドを選ぶ（place / subjects / freeTags）。

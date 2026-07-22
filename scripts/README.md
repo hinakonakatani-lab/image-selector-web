@@ -7,40 +7,46 @@
 
 スクリプトは実行時に `process.env` から認証情報を読みます。
 
-**方針（重要）: トークンをローカルに一切保存しません。**
-Vercel に設定済みの環境変数を、**実行のたびに Vercel からメモリに取得**して使います。
-`.env` / `.env.local` などのファイルにトークンを書き出すことはしません（`vercel env pull <ファイル名>`
-のようにファイルへ落とす使い方は禁止）。
+**方針（重要）: ローカルには全権トークンを一切保存しません。**
+CLI はアプリの relay API（`/api/labels-shared`）を叩きます。Vercel に設定済みの専用トークン（`LABELS_INGEST_TOKEN`）を、**アプリのサーバー側のみ**に保持し、ローカルではキーチェーン項目で管理します。
 
-### 使う環境変数
+### 必要な設定
 
-**Redis / Vercel KV（必須）**
-- **`KV_REST_API_URL`**: Upstash Redis の REST エンドポイント
-- **`KV_REST_API_TOKEN`**: Upstash Redis の書き込み用トークン
+**ローカル環境変数（非秘密）**
+- **`LABELS_API_BASE`**（env）: デプロイ済みアプリの URL
+  例: `https://<your-deployment>.vercel.app`
+
+**キーチェーン管理（秘密）**
+- **`image-selector-labels-token`**: Vercel に設定した `LABELS_INGEST_TOKEN` の値。キーチェーンに保存し、スクリプト実行時に取得。
+
+### ワンタイム設置手順
+
+1. 専用トークンを生成し、Vercel に設定（値を画面に出さない）：
+
+```bash
+# トークンを生成し、Vercel とキーチェーンに設置（値は表示しない）
+TOKEN=$(openssl rand -hex 32)
+printf '%s' "$TOKEN" | vercel env add LABELS_INGEST_TOKEN production
+security add-generic-password -a "$USER" -s image-selector-labels-token -w "$TOKEN" -U
+unset TOKEN
+```
+
+2. アプリ URL を設定：
+
+```bash
+export LABELS_API_BASE="https://<your-prod-url>"
+```
+
+3. Vercel をデプロイ（自動なら git push、手動なら `vercel --prod`）して `LABELS_INGEST_TOKEN` を反映。
+
+**注意:**
+- `TOKEN` は一度設定したら unset してメモリから削除（画面・ファイルに残さない）。
+- キーチェーン項目からは `security find-generic-password -a "$USER" -s image-selector-labels-token -w` で取得（スクリプトで自動読み込み）。
+- `LABELS_API_BASE` は `.env.local` ではなく、実行時に `export` するか、ターミナル設定で永続化する。
 
 **Google Drive OAuth（Path 2 では必須／Path 1 のみなら不要）**
 - **`GOOGLE_CLIENT_ID`** / **`GOOGLE_CLIENT_SECRET`** / **`GOOGLE_REFRESH_TOKEN`**
-
-これらはすべて **Vercel のプロジェクト環境変数**に設定しておき、ローカルには保存しません。
-（Vercel ダッシュボード → プロジェクト → Settings → Environment Variables で確認・設定）
-
-### ディスクに残さず Vercel から取得して実行する
-
-`vercel env pull` の出力先を `/dev/stdout` にすると、dotenv 形式が標準出力（パイプ＝メモリ）に
-流れ、実ファイルには書き込まれません。これをそのシェルに読み込み、コマンドを実行します：
-
-```bash
-# トークンをファイルに残さず、Vercel からメモリに取り込んで実行する例
-set -a
-source <(vercel env pull --environment=production /dev/stdout 2>/dev/null)
-set +a
-node scripts/read-labels.mjs        # 以降このシェルの子プロセスは env を継承
-```
-
-- `--environment` は、対象トークンを設定した環境に合わせる（`production` / `preview` / `development`）。
-- 取り込んだ値はそのシェルセッションのメモリ内だけに存在し、ディスクには残りません。
-- 別コマンドを続けて実行する場合も、同じシェルで `source` 済みなら再取得は不要。
-- 初回は `vercel login` / `vercel link` が必要な場合があります（トークン自体はローカルに保存されません）。
+  これらは引き続き Vercel のプロジェクト環境変数に設定します。
 
 ## スキル
 
@@ -131,10 +137,16 @@ Drive 連携は **読み取り専用**です：
 以下はライブの認証情報・環境が必要で、**まだ実施していません**。
 これらが済むまで、このワークフローを「本番検証済み」とは扱わないでください：
 
-- **(a) Redis の往復確認:** 上記「Vercel からメモリに取得」の手順で `KV_REST_API_URL` /
-  `KV_REST_API_TOKEN` を読み込んだシェルで `node scripts/write-labels.mjs <folderId>` を実行 →
-  `node scripts/read-labels.mjs` で書き込んだラベルが返ることを確認する（トークンはファイルに残さない）。
-  実際の Upstash カーソル（数値 vs 文字列 `"0"`）に対する `readAllLabels` の SCAN ループもここで検証される。
+- **(a) relay API の往復確認:** 上記「ワンタイム設置手順」で `LABELS_API_BASE` と
+  キーチェーン項目 `image-selector-labels-token` を設定したシェルで、テスト用ラベルを書き込み → 読み取り確認を実行：
+  ```bash
+  # テスト用フォルダID（実在する Drive フォルダ）を指定
+  TEST_FOLDER_ID="<test-folder-id>"
+  # write → read の往復
+  echo '{"test-file-id": {"scene": "屋内", "hasPerson": true}}' | node scripts/write-labels.mjs "$TEST_FOLDER_ID"
+  node scripts/read-labels.mjs | jq ".[] | select(.folderId == \"$TEST_FOLDER_ID\")"
+  ```
+  relay API（`/api/labels-shared`）が書き込み・読み取り双方で期待どおり動くか、また戻り値の形式が正しいか確認する。
 - **(b) Path 2 の検証スパイク:** 実際の Drive ファイルで OAuth の `thumbnailLink=s1024` 取得が
   端から端まで動くか確認する。失敗・不安定なら Path 1（MCP `download_file_content` でDL →
   `sips` 縮小 → `Read`）にフォールバックする（こちらは実証済み）。
