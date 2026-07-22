@@ -44,9 +44,39 @@ export LABELS_API_BASE="https://<your-prod-url>"
 - キーチェーン項目からは `security find-generic-password -a "$USER" -s image-selector-labels-token -w` で取得（スクリプトで自動読み込み）。
 - `LABELS_API_BASE` は `.env.local` ではなく、実行時に `export` するか、ターミナル設定で永続化する。
 
-**Google Drive OAuth（Path 2 では必須／Path 1 のみなら不要）**
-- **`GOOGLE_CLIENT_ID`** / **`GOOGLE_CLIENT_SECRET`** / **`GOOGLE_REFRESH_TOKEN`**
-  これらは引き続き Vercel のプロジェクト環境変数に設定します。
+**Google Drive OAuth（Path 2 で必須／Path 1 のみなら不要）**
+
+Path 2（`list-images.mjs` が `thumbnailLink=s1024` を取得）は Drive API を直接叩くため、
+`drive.readonly`（読み取り専用）の OAuth 認証情報が要る。**平文ファイルには置かず、
+キーチェーン項目 `image-selector-google-oauth` に JSON でまとめて保存**し、CLI は
+`api-config.getGoogleCreds()` で読む（値はログしない）。
+
+キーチェーンに入れる JSON の形：
+```json
+{ "clientId": "...", "clientSecret": "...", "refreshToken": "..." }
+```
+
+**ワンタイム設置手順（値を画面に出さない）：**
+
+1. リフレッシュトークンを発行（`drive.readonly` スコープ）
+   - [Google Cloud Console](https://console.cloud.google.com) で OAuth 2.0 クライアントを用意
+     （既存の `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` を再利用可。ただし OAuth Playground の
+     リダイレクト URI `https://developers.google.com/oauthplayground` を許可に追加しておく）
+   - [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) の歯車で「Use your own
+     OAuth credentials」に clientId/secret を入れ、スコープ
+     `https://www.googleapis.com/auth/drive.readonly` を承認 →「Exchange authorization code for
+     tokens」で **refresh token** を取得
+2. 3項目を JSON にまとめてキーチェーンへ（値は画面に出さない）
+   ```bash
+   # clientId/clientSecret/refreshToken を対話で入力し、JSON を組んでキーチェーンに格納
+   read -r CID; read -r CSEC; read -r RTOK   # それぞれ貼り付けて Enter（表示される点だけ注意。気になれば下記 pbpaste 版）
+   printf '{"clientId":"%s","clientSecret":"%s","refreshToken":"%s"}' "$CID" "$CSEC" "$RTOK" \
+     | xargs -0 -I{} security add-generic-password -a "$USER" -s image-selector-google-oauth -w {} -U
+   unset CID CSEC RTOK
+   ```
+   - CLI は `security find-generic-password -s image-selector-google-oauth -w` で自動取得する。
+   - Vercel 側の `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` はアプリ（NextAuth）用として別途そのまま。
+   - このトークンは **読み取り専用**（画像の削除・変更は不可）。
 
 ## スキル
 
