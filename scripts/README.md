@@ -82,6 +82,8 @@ export LABELS_API_BASE="https://<your-prod-url>"
 
 `scripts/lib/` のモジュールはすべて env 不要・テスト済みです：
 
+- **`api-config.mjs`**: `LABELS_API_BASE`(env) の取得と、キーチェーンから `LABELS_INGEST_TOKEN` の取得
+- **`labels-api.mjs`**: relay API のリクエスト組み立て（純関数）
 - **`keys.mjs`**: Redis のキー命名規則（labels:shared:* / vocab:* / scan パターン、SCAN完了判定）
 - **`tag-schema.mjs`**: ラベル構造の検証（固定軸: hasPerson・scene・shot／配列: subjects・freeTags・tags）
 - **`drive-tree.mjs`**: Drive ツリーの走査（フォルダ/画像の判定、親フォルダ単位のグルーピング）
@@ -89,7 +91,7 @@ export LABELS_API_BASE="https://<your-prod-url>"
 - **`vocab.mjs`**: 語彙の出現頻度集計と、統合マップの適用（非破壊）
 - **`gallery.mjs`**: 絞り込んだ画像を HTML グリッドに描画（タグをエスケープ・遅延読み込み）
 - **`image.mjs`**: `sips`（macOS 標準）で画像を長辺 1024px に縮小
-- **`redis.mjs`**: Upstash Redis クライアント。全ラベルの読み取り（SCAN）とフォルダ単位の書き込み（マージ）
+- **`redis.mjs`**: relay API（`/api/labels-shared`）経由で全ラベル読取（`readAllLabels()`）とフォルダ単位書込（`writeLabels(folderId, incoming)`）。Upstash 直叩きはしない。
 
 ## コマンドラインツール
 
@@ -173,9 +175,11 @@ Drive 連携は **読み取り専用**です：
 node --test scripts/lib/*.test.mjs
 ```
 
-期待される結果：8モジュールにわたり 22 件のテストが pass。
+期待される結果：10モジュールにわたり 29 件のテストが pass。
 
 各モジュールは公開関数をエクスポートし、対応する `.test.mjs` を持ちます：
+- **api-config.test.mjs**: `getBaseUrl` の検証（env からの取得・URL妥当性）
+- **labels-api.test.mjs**: リクエスト組み立ての検証（GET/POST・Bearer・baseUrl正規化）
 - **keys.test.mjs**: Redis キー命名・SCAN完了判定
 - **tag-schema.test.mjs**: ラベル検証と固定軸の候補
 - **drive-tree.test.mjs**: ツリー走査とリーフのグルーピング
@@ -183,9 +187,9 @@ node --test scripts/lib/*.test.mjs
 - **vocab.test.mjs**: 頻度集計と統合の適用
 - **gallery.test.mjs**: エスケープつきHTML描画
 - **image.test.mjs**: 長辺1024pxへの縮小
-- **redis.test.mjs**: ラベルのマージ
+- **redis.test.mjs**: `readAllLabels`/`writeLabels` のエクスポート確認（smoke check）
 
 ---
 
-**ブランチ:** `feature/image-tagging-theme-collection`（main にマージ済み）
-**タスク:** 1〜14（フェーズA スキーマ、フェーズB タグ付け＋統一＋収集）
+**ブランチ:** `feature/labels-shared-api`
+**タスク:** relay API 統合（issue #2）
