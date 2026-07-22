@@ -7,7 +7,11 @@ description: Google Drive フォルダ配下の画像を Claude の vision で�
 
 ## 前提
 - Drive は読み取り専用。`.claude/settings.json` で create_file/copy_file を deny 済みであること。
-- env: `KV_REST_API_URL` `KV_REST_API_TOKEN`（書込）、Path 2 採用時は `GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN`。
+- Redis へは直接アクセスしない。`scripts/read-labels.mjs` / `write-labels.mjs` はアプリの relay API（`/api/labels-shared`）経由で読み書きする。
+- 必要な設定：
+  - **`LABELS_API_BASE`**（env・非秘密）: デプロイ済みアプリの URL（例 `https://<deployment>.vercel.app`）
+  - **キーチェーン項目 `image-selector-labels-token`**: 用途限定トークン（`LABELS_INGEST_TOKEN`）
+  - Path 2 採用時は `GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN`
 
 ## タグ構造（軸）
 各画像に次を付ける（既存 bigTheme/specificTheme/tags は空のままでよい）:

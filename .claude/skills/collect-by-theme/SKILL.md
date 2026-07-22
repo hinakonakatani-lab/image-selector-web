@@ -1,9 +1,15 @@
 ---
 name: collect-by-theme
-description: ユーザー指定のテーマ/キーワードから、タグ付け済み画像を集めてギャラリーHTMLで提案する。まず構造化フィルタで絞り、次に Claude が意味的にテーマ適合順へ精査する（2段構え）。
+description: ユーザー指定のテーマ/キーワードから、タグ付け済み画像を集めてギャラリーHTMLで提案する。まず構造化フィルタで絞り、次に Claude が意味的にテーマ適合順へ精査する（2段構え）。読み取り専用・アプリの relay API 経由。
 ---
 
 # collect-by-theme
+
+## 前提
+- Redis へは直接アクセスしない。`scripts/read-labels.mjs` はアプリの relay API（`/api/labels-shared`）経由で読み取りのみ行う。
+- 必要な設定：
+  - **`LABELS_API_BASE`**（env・非秘密）: デプロイ済みアプリの URL（例 `https://<deployment>.vercel.app`）
+  - **キーチェーン項目 `image-selector-labels-token`**: 用途限定トークン（`LABELS_INGEST_TOKEN`）
 
 ## 手順
 1. ユーザーからテーマ/キーワードを受け取る（例「明るい北欧風のリビング」）。
