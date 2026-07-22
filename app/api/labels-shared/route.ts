@@ -59,11 +59,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { folderId, labels } = (await request.json()) as {
-    folderId?: string;
-    labels?: Record<string, unknown>;
-  };
-  if (!folderId || !labels || typeof labels !== "object") {
+  let body: { folderId?: string; labels?: Record<string, unknown> };
+  try {
+    body = (await request.json()) as { folderId?: string; labels?: Record<string, unknown> };
+  } catch {
+    return NextResponse.json({ error: "JSON が不正です" }, { status: 400 });
+  }
+  const { folderId, labels } = body;
+  if (!folderId || !labels || typeof labels !== "object" || Array.isArray(labels)) {
     return NextResponse.json({ error: "folderId・labels が必要です" }, { status: 400 });
   }
 
