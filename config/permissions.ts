@@ -25,6 +25,7 @@ export const GENERAL_EMAILS: string[] = [
   "izumi.nakamura@shintairiku.jp",
   "yukako.fukushima@shintairiku.jp",
   "yoshino.yamamoto@shintairiku.jp",
+  "marketing.shintairiku@gmail.com",
   "toru.kimura@shintairiku.jp",
   "fumiko.oda@shintairiku.jp",
   "takeshi.ogura@shintairiku.jp",
