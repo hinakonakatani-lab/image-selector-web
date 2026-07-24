@@ -112,7 +112,10 @@ export default function TagSearchPanel({ folders, folderId, ...gridProps }: Prop
   useEffect(() => {
     if (leafIds.length === 0) return;
     fetch(`/api/tag-vocab?leafIds=${leafIds.join(",")}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("request failed");
+        return res.json();
+      })
       .then((data: VocabResponse) => setVocab(data))
       .catch(() => setError("語彙の取得に失敗しました"));
   }, [leafIds]);
@@ -126,7 +129,10 @@ export default function TagSearchPanel({ folders, folderId, ...gridProps }: Prop
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ leafIds, criteria }),
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("request failed");
+        return res.json();
+      })
       .then((data: { fileIds: string[] }) => setFileIds(data.fileIds))
       .catch(() => setError("検索に失敗しました"))
       .finally(() => setLoading(false));
