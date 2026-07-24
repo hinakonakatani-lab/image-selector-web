@@ -13,6 +13,7 @@ import ExportImport from "@/app/components/ExportImport";
 import ManualColorPicker from "@/app/components/ManualColorPicker";
 import FolderTagVisibilityToggle from "@/app/components/FolderTagVisibilityToggle";
 import ThemeAnalysis from "@/app/components/ThemeAnalysis";
+import TagSearchPanel from "@/app/components/TagSearchPanel";
 import type { DriveFolder } from "@/app/api/drive/route";
 import { getRole, canImport as canImportFn, canUseColorFeatures, canEditMemos, canUseFolderTagFeature } from "@/config/permissions";
 
@@ -89,7 +90,7 @@ export default async function Home({
   const params = await searchParams;
   const folderId = params.folderId || "";
   const forceRefresh = params.refresh === "1";
-  const activeTab = params.tab === "theme" ? "theme" : "select";
+  const activeTab = params.tab === "theme" ? "theme" : params.tab === "tagsearch" ? "tagsearch" : "select";
   const role = getRole(session?.user?.email);
   const isAdmin = role === "admin";
   const canImport = canImportFn(role);
@@ -253,6 +254,16 @@ export default async function Home({
             >
               🏷️ テーマ分析
             </a>
+            <a
+              href={`?folderId=${folderId}&tab=tagsearch`}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+                activeTab === "tagsearch"
+                  ? "border-green-500 text-green-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              🔍 タグ検索
+            </a>
           </div>
         )}
 
@@ -303,6 +314,25 @@ export default async function Home({
         {/* テーマ分析タブ */}
         {activeTab === "theme" && (
           <ThemeAnalysis folderId={folderId} folders={folders} />
+        )}
+
+        {/* タグ検索タブ */}
+        {folders.length > 0 && activeTab === "tagsearch" && (
+          <TagSearchPanel
+            key={folderId}
+            folders={folders}
+            folderId={folderId}
+            initialColors={colors}
+            initialMonths={months}
+            initialMemos={memos}
+            initialFolderTagCount={folderTagCount}
+            initialFolderTags={folderTags}
+            initialRenameMap={renameMap}
+            userName={session.user?.name || session.user?.email || ""}
+            canUseColor={canUseColor}
+            canEditMemo={canEditMemo}
+            canUseFolderTag={canUseFolderTag}
+          />
         )}
 
         {/* 画像なし */}
