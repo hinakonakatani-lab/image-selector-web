@@ -7,7 +7,8 @@ import type { DriveFolder } from "@/app/api/drive/route";
 type MemoEntry = { text: string; authorName: string; updatedAt: string };
 
 type VocabEntry = { value: string; count: number };
-type VocabResponse = { place: VocabEntry[]; subjects: VocabEntry[]; freeTags: VocabEntry[] };
+type SynonymGroup = { canonical: string; synonyms: string[] };
+type VocabResponse = { place: VocabEntry[]; subjects: VocabEntry[]; freeTags: VocabEntry[]; synonymGroups: SynonymGroup[] };
 
 type Criteria = {
   scene?: "屋内" | "屋外";
@@ -38,22 +39,36 @@ const EMPTY_CRITERIA: Criteria = { place: [], subjects: [], freeTags: [] };
 type SearchState = { key: string; fileIds: string[] | null; error: string | null };
 const EMPTY_SEARCH_STATE: SearchState = { key: "", fileIds: null, error: null };
 
+function expandQuery(query: string, groups: SynonymGroup[]): string[] {
+  const terms = new Set([query]);
+  for (const group of groups) {
+    const members = [group.canonical, ...group.synonyms];
+    if (members.some((m) => m.includes(query))) {
+      terms.add(group.canonical);
+    }
+  }
+  return [...terms];
+}
+
 function TagAutocomplete({
   label,
   options,
   selected,
   onAdd,
   onRemove,
+  synonymGroups,
 }: {
   label: string;
   options: VocabEntry[];
   selected: string[];
   onAdd: (value: string) => void;
   onRemove: (value: string) => void;
+  synonymGroups: SynonymGroup[];
 }) {
   const [query, setQuery] = useState("");
+  const matchTerms = query ? expandQuery(query, synonymGroups) : [];
   const suggestions = query
-    ? options.filter((o) => o.value.includes(query) && !selected.includes(o.value)).slice(0, 8)
+    ? options.filter((o) => matchTerms.some((t) => o.value.includes(t)) && !selected.includes(o.value)).slice(0, 8)
     : [];
   const quickTags = options.filter((o) => !selected.includes(o.value)).slice(0, 6);
 
@@ -226,6 +241,7 @@ export default function TagSearchPanel({ folders, folderId, ...gridProps }: Prop
           selected={criteria[field]}
           onAdd={(v) => addChip(field, v)}
           onRemove={(v) => removeChip(field, v)}
+          synonymGroups={vocab?.synonymGroups ?? []}
         />
       ))}
 

@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { readLeafLabels } from "@/lib/shared-labels";
 import { collectVocab } from "@/scripts/lib/vocab.mjs";
-import { loadSynonymGroups } from "@/scripts/lib/synonyms.mjs";
+import synonymGroups from "@/config/tag-synonyms.json";
 
 type Group = { canonical: string; synonyms?: string[] };
 
@@ -30,10 +30,9 @@ export async function GET(request: Request) {
   const leafIds = leafIdsParam.split(",").filter(Boolean);
 
   const items = await readLeafLabels(leafIds);
-  const groups = loadSynonymGroups();
 
   const toSorted = (field: "place" | "subjects" | "freeTags") => {
-    const counts = mergeSynonymCounts(collectVocab(items, field), groups);
+    const counts = mergeSynonymCounts(collectVocab(items, field), synonymGroups);
     return [...counts.entries()]
       .map(([value, count]) => ({ value, count }))
       .sort((a, b) => b.count - a.count);
@@ -43,5 +42,6 @@ export async function GET(request: Request) {
     place: toSorted("place"),
     subjects: toSorted("subjects"),
     freeTags: toSorted("freeTags"),
+    synonymGroups,
   });
 }

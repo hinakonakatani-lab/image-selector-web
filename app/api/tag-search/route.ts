@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { readLeafLabels, type SharedLabelItem } from "@/lib/shared-labels";
 import { filterByCriteria } from "@/scripts/lib/filter.mjs";
-import { loadSynonymGroups } from "@/scripts/lib/synonyms.mjs";
+import synonymGroups from "@/config/tag-synonyms.json";
 
 type SearchCriteria = {
   scene?: "屋内" | "屋外";
@@ -31,8 +31,7 @@ export async function POST(request: Request) {
   }
 
   const items = await readLeafLabels(leafIds);
-  const groups = loadSynonymGroups();
-  const matched: SharedLabelItem[] = filterByCriteria(items, criteria ?? {}, groups);
+  const matched: SharedLabelItem[] = filterByCriteria(items, criteria ?? {}, synonymGroups);
 
   return NextResponse.json({ fileIds: matched.map((x) => x.fileId) });
 }
