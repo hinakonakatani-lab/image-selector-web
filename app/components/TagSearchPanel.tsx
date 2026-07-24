@@ -35,6 +35,9 @@ type Props = {
 
 const EMPTY_CRITERIA: Criteria = { place: [], subjects: [], freeTags: [] };
 
+type SearchState = { key: string; fileIds: string[] | null; error: string | null };
+const EMPTY_SEARCH_STATE: SearchState = { key: "", fileIds: null, error: null };
+
 function TagAutocomplete({
   label,
   options,
@@ -105,9 +108,18 @@ export default function TagSearchPanel({ folders, folderId, ...gridProps }: Prop
   const leafIds = useMemo(() => folders.map((f) => f.id), [folders]);
   const [vocab, setVocab] = useState<VocabResponse | null>(null);
   const [criteria, setCriteria] = useState<Criteria>(EMPTY_CRITERIA);
-  const [fileIds, setFileIds] = useState<string[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [vocabError, setVocabError] = useState<string | null>(null);
+  const [searchState, setSearchState] = useState<SearchState>(EMPTY_SEARCH_STATE);
+
+  // Identifies the (leafIds, criteria) pair a search request was made for. Comparing
+  // this against searchState.key lets loading/error be *derived* during render instead
+  // of requiring a setState call at the top of the search effect (see
+  // react-hooks/set-state-in-effect).
+  const requestKey = useMemo(() => JSON.stringify({ leafIds, criteria }), [leafIds, criteria]);
+  const fileIds = searchState.fileIds;
+  const loading = leafIds.length > 0 && searchState.key !== requestKey;
+  const searchError = searchState.key === requestKey ? searchState.error : null;
+  const error = vocabError ?? searchError;
 
   useEffect(() => {
     if (leafIds.length === 0) return;
@@ -117,26 +129,31 @@ export default function TagSearchPanel({ folders, folderId, ...gridProps }: Prop
         return res.json();
       })
       .then((data: VocabResponse) => setVocab(data))
-      .catch(() => setError("語彙の取得に失敗しました"));
+      .catch(() => setVocabError("語彙の取得に失敗しました"));
   }, [leafIds]);
 
   useEffect(() => {
     if (leafIds.length === 0) return;
-    setLoading(true);
-    setError(null);
+    const controller = new AbortController();
     fetch("/api/tag-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ leafIds, criteria }),
+      signal: controller.signal,
     })
       .then((res) => {
         if (!res.ok) throw new Error("request failed");
         return res.json();
       })
-      .then((data: { fileIds: string[] }) => setFileIds(data.fileIds))
-      .catch(() => setError("検索に失敗しました"))
-      .finally(() => setLoading(false));
-  }, [leafIds, criteria]);
+      .then((data: { fileIds: string[] }) => {
+        setSearchState({ key: requestKey, fileIds: data.fileIds, error: null });
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setSearchState((prev) => ({ key: requestKey, fileIds: prev.fileIds, error: "検索に失敗しました" }));
+      });
+    return () => controller.abort();
+  }, [leafIds, criteria, requestKey]);
 
   const filteredFolders: DriveFolder[] = useMemo(() => {
     if (fileIds === null) return folders;
