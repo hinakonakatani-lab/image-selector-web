@@ -1,0 +1,19 @@
+[
+  { "canonical": "バルコニー", "synonyms": ["ベランダ"] },
+  { "canonical": "洗面室", "synonyms": ["洗面所"] },
+  { "canonical": "収納スペース", "synonyms": ["収納部屋", "納戸"] },
+  { "canonical": "ワークスペース", "synonyms": ["書斎", "スタディコーナー"] },
+  { "canonical": "ウォークインクローゼット", "synonyms": ["WIC", "ウォークインクロゼット"] },
+  { "canonical": "シューズクローク", "synonyms": ["シューズクロゼット", "SC"] },
+  { "canonical": "土間収納", "synonyms": ["土間"] },
+  { "canonical": "ファミリークローゼット", "synonyms": ["ファミクロ", "FC"] },
+  { "canonical": "ランドリールーム", "synonyms": ["洗濯室", "ユーティリティ"] },
+  { "canonical": "玄関", "synonyms": ["エントランス"] },
+  { "canonical": "壁面ニッチ", "synonyms": ["ニッチ"] },
+  { "canonical": "一戸建て住宅", "synonyms": ["戸建て", "一戸建て"] },
+  { "canonical": "収納棚", "synonyms": ["棚", "シェルフ"] },
+  { "canonical": "押入れ", "synonyms": ["押し入れ"] },
+  { "canonical": "モデルハウス", "synonyms": ["モデルルーム"] },
+  { "canonical": "レトロ", "synonyms": ["アンティーク"] },
+  { "canonical": "開放的", "synonyms": ["開放感"] }
+]
