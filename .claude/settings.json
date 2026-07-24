@@ -3,6 +3,16 @@
     "deny": [
       "mcp__claude_ai_Google_Drive__create_file",
       "mcp__claude_ai_Google_Drive__copy_file"
+    ],
+    "allow": [
+      "mcp__claude_ai_Google_Drive__search_files",
+      "mcp__plugin_Notion_notion__notion-fetch",
+      "mcp__plugin_Notion_notion__notion-search",
+      "Bash(node scripts/download-thumbs.mjs *)",
+      "Bash(node scripts/write-labels.mjs *)",
+      "Bash(node scripts/read-labels.mjs)",
+      "Bash(node scripts/list-images.mjs *)",
+      "Agent"
     ]
   }
 }

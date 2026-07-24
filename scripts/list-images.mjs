@@ -1,16 +1,7 @@
 // scripts/list-images.mjs
 // usage: node scripts/list-images.mjs <rootFolderId>
-import { google } from "googleapis";
 import { splitChildren, groupImagesByLeaf } from "./lib/drive-tree.mjs";
-import { getGoogleCreds } from "./lib/api-config.mjs";
-
-function driveClient() {
-  // Google OAuth（drive.readonly）認証情報はキーチェーンから取得（環境変数に平文で置かない）
-  const { clientId, clientSecret, refreshToken } = getGoogleCreds();
-  const o = new google.auth.OAuth2(clientId, clientSecret);
-  o.setCredentials({ refresh_token: refreshToken });
-  return google.drive({ version: "v3", auth: o });
-}
+import { driveClient } from "./lib/drive-client.mjs";
 
 async function listChildren(drive, parentId) {
   const files = [];

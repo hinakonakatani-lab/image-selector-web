@@ -30,9 +30,9 @@ description: Google Drive フォルダ配下の画像を Claude の vision で�
    併せて既存の place / subjects 語彙一覧を控える（寄せる先）。
 4. 未処理画像を 8 枚程度のバッチに分割。各バッチは **使い捨てサブエージェント**に渡し、親のコンテキストを画像で汚さない。
    サブエージェントへの指示:
-   - 各 fileId の thumbnailLink(=s1024) を fetch してスクラッチにサムネ保存
-     （Path 1 の場合は MCP download_file_content → ディスク保存 → `node -e` で image.downscale）。
-   - サムネを Read して内容を確認し、上記6項目のタグを付ける。place/subjects は渡された既存語彙に寄せる。
+   - バッチ内 fileId 配列を1コマンドで一括ダウンロード（thumbnailLinkは署名付きURLで短時間失効するため、都度取り直して保存する。コマンド形が常に同じなので許可プロンプトが積み上がらない）:
+     `echo '["<fileId1>","<fileId2>",...]' | node scripts/download-thumbs.mjs <scratchpad>/<batch名>`
+   - 保存された各 jpg を Read して内容を確認し、上記6項目のタグを付ける。place/subjects は渡された既存語彙に寄せる。
    - `{ [fileId]: { hasPerson, scene, shot, place, subjects, freeTags } }` を JSON で返す。
 5. サブエージェントの返り値を検証（tag-schema の値域）し、成功分を **都度** 書込:
    `echo '<json>' | node scripts/write-labels.mjs <leafFolderId>`
