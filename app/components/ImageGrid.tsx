@@ -356,6 +356,22 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     setSaving(false);
   }, [selected, folderId]);
 
+  // このフォルダの本目タグを全件解除する（本数上限を下げたときに残った番号も含めて掃除する）
+  const clearAllFolderTags = useCallback(async () => {
+    const ids = Object.keys(folderTags);
+    if (ids.length === 0) return;
+    setSaving(true);
+
+    setFolderTags({});
+
+    await fetch("/api/folder-tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, fileIds: ids, tag: null }),
+    });
+    setSaving(false);
+  }, [folderTags, folderId]);
+
   const saveFolderTagCount = useCallback(async (count: number) => {
     setFolderTagCount(count);
     await fetch("/api/folder-tag-count", {
@@ -665,6 +681,8 @@ const handleMonthSave = useCallback(async (color: string) => {
     return acc;
   }, {} as Record<number, number>);
 
+  const taggedTotal = Object.keys(folderTags).length;
+
   const folderTagFolders = activeFolderTagNum !== null
     ? folders
       .map(folder => ({
@@ -948,6 +966,17 @@ const handleMonthSave = useCallback(async (color: string) => {
               title="本目ごとに分けて順番にダウンロードします（1本目.zip、2本目.zipのように複数ファイルになります）"
             >
               {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード（本目ごと）"}
+            </button>
+            <button
+              onClick={() => setConfirmDialog({
+                message: `1本目〜${folderTagCount}本目に設定された ${taggedTotal}枚 の本目をすべて解除します。よろしいですか？`,
+                onConfirm: clearAllFolderTags,
+              })}
+              disabled={taggedTotal === 0 || saving}
+              className="text-xs px-3 py-1 self-center rounded border border-gray-300 text-gray-600 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-gray-300 disabled:hover:text-gray-600"
+              title="このフォルダに設定した本目をまとめて解除します（画像自体は消えません）"
+            >
+              🧹 全て選択解除{taggedTotal > 0 && `（${taggedTotal}枚）`}
             </button>
           </div>
         )}
