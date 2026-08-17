@@ -66,6 +66,7 @@ export const GENERAL_EMAILS: string[] = [
   "tsukasa.matsunaga@shintairiku.jp",
   "yusuke.tokunaga@shintairiku.jp",
   "h.nakatani04@gmail.com",
+  "smartcast0310@gmail.com",
   "yukihon.pen@gmail.com",
 ];
 
