@@ -16,59 +16,15 @@ import ThemeAnalysis from "@/app/components/ThemeAnalysis";
 import TagSearchPanel from "@/app/components/TagSearchPanel";
 import type { DriveFolder } from "@/app/api/drive/route";
 import { getRole, canImport as canImportFn, canUseColorFeatures, canEditMemos, canUseFolderTagFeature } from "@/config/permissions";
+import { walkFolders } from "@/lib/drive-walk";
+import { isFolderCacheFresh, type FolderCache } from "@/lib/folder-cache";
+
+// フォルダツリーの走査はDriveへの往復が多い。既定のタイムアウトに当たると
+// キャッシュ更新（kv.set）まで到達できず、古いキャッシュが残り続けるため明示的に伸ばす。
+export const maxDuration = 60;
 
 type Bookmark = { id: string; name: string; folderId: string };
 type MemoEntry = { text: string; authorName: string; updatedAt: string };
-
-type FolderCache = {
-  folders: DriveFolder[];
-  cachedAt: number;
-};
-
-async function getFoldersRecursive(
-  drive: ReturnType<typeof google.drive>,
-  folderId: string,
-  parentPath: string
-): Promise<DriveFolder[]> {
-  const nameRes = await drive.files.get({ fileId: folderId, fields: "name", supportsAllDrives: true });
-  const name = nameRes.data.name || folderId;
-  const currentPath = parentPath ? `${parentPath} / ${name}` : name;
-
-  const imagesRes = await drive.files.list({
-    q: `'${folderId}' in parents and mimeType contains 'image/' and not mimeType = 'image/vnd.adobe.photoshop' and trashed = false`,
-    fields: "files(id, name, thumbnailLink, webViewLink)",
-    pageSize: 1000,
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
-
-  const images = (imagesRes.data.files || []).map((f) => ({
-    id: f.id!,
-    name: f.name!,
-    thumbnailUrl: f.thumbnailLink?.replace("=s220", "=s300") || "",
-    webViewLink: f.webViewLink!,
-  }));
-
-  const result: DriveFolder[] = [];
-  if (images.length > 0) {
-    result.push({ id: folderId, name, path: currentPath, images });
-  }
-
-  const subRes = await drive.files.list({
-    q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id, name)",
-    pageSize: 100,
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  });
-
-  for (const sub of subRes.data.files || []) {
-    const subFolders = await getFoldersRecursive(drive, sub.id!, currentPath);
-    result.push(...subFolders);
-  }
-
-  return result;
-}
 
 function formatCachedAt(cachedAt: number): string {
   const diffMs = Date.now() - cachedAt;
@@ -143,23 +99,26 @@ export default async function Home({
       const cacheKey = `cache:${session.user?.email}:${folderId}`;
       let fromCache = false;
 
-      // キャッシュ確認（強制更新でなければ使用）
+      // キャッシュ確認（強制更新でなければ使用）。
+      // キャッシュにはDriveの署名付きサムネイルURLが入っていて1時間未満で失効するので、
+      // 古いものは使わずに取り直す。TTLではなく読み取り時に判定するのは、
+      // TTL無しで書かれた既存のキャッシュにも遡って効かせるため。
       if (!forceRefresh) {
         const cached = await kv.get<FolderCache>(cacheKey);
-        if (cached?.folders?.length) {
-          folders = cached.folders;
-          cachedAt = cached.cachedAt;
+        if (isFolderCacheFresh(cached, Date.now())) {
+          folders = cached!.folders;
+          cachedAt = cached!.cachedAt;
           fromCache = true;
         }
       }
 
-      // キャッシュなし or 強制更新 → Google Driveから取得してキャッシュ保存
+      // キャッシュなし or 期限切れ or 強制更新 → Google Driveから取得してキャッシュ保存
       if (!fromCache) {
         const oauth2Client = new google.auth.OAuth2();
         oauth2Client.setCredentials({ access_token: session.accessToken });
         const drive = google.drive({ version: "v3", auth: oauth2Client });
 
-        folders = await getFoldersRecursive(drive, folderId, "");
+        folders = await walkFolders(drive, folderId);
         const now = Date.now();
         if (folders.length > 0) {
           await kv.set(cacheKey, { folders, cachedAt: now });
@@ -186,6 +145,12 @@ export default async function Home({
       renameMap = (await kv.get<Record<string, string>>(renameMapKey)) || {};
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : "エラーが発生しました";
+      // 握りつぶすと「再読み込みを押しても直らない」が原因不明のまま残る。
+      // どのユーザーが・どのフォルダで・強制更新中に落ちたかをVercelのログに残す。
+      console.error(
+        `[folder-load] user=${session.user?.email} folderId=${folderId} refresh=${forceRefresh}`,
+        e
+      );
     }
   }
 
