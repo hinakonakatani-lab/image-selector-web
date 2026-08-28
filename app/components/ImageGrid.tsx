@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import type { DriveFolder, DriveImage } from "@/app/api/drive/route";
 import { useFolderTagVisibility } from "@/app/components/FolderTagVisibilityToggle";
+import { createThumbRefreshQueue, nextThumbStatus, type ThumbRefreshQueue, type ThumbStatus } from "@/lib/thumb-refresh-queue";
 
 const YELLOW = "#ffe599";
 const GRAY = "#999999";
@@ -99,6 +100,59 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [memoModal, setMemoModal] = useState<string | null>(null);
   const [memoEditText, setMemoEditText] = useState("");
   const [headerHeight, setHeaderHeight] = useState(57);
+
+  // Driveのサムネイル署名付きURLは1時間未満で失効する。開きっぱなしのタブでは
+  // 遅延読み込みされる画像だけが403になるので、失敗したものを裏で取り直して差し替える。
+  const [refreshedThumbs, setRefreshedThumbs] = useState<Record<string, string>>({});
+  // "retrying" = 取り直し中 / "failed" = 取り直しても表示できなかった
+  const [thumbState, setThumbState] = useState<Record<string, ThumbStatus>>({});
+  const thumbQueueRef = useRef<ThumbRefreshQueue | null>(null);
+  // 一度でも取り直しを試みた fileId。二度目の失敗を「諦める」に落とすために持つ。
+  const refreshAttemptedRef = useRef<Set<string>>(new Set());
+  if (thumbQueueRef.current === null) {
+    const markFailed = (ids: string[]) => {
+      if (ids.length === 0) return;
+      setThumbState(prev => {
+        const next = { ...prev };
+        ids.forEach(id => { next[id] = "failed"; });
+        return next;
+      });
+    };
+    thumbQueueRef.current = createThumbRefreshQueue({
+      fetchUrls: async fileIds => {
+        const res = await fetch("/api/thumb-refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileIds }),
+        });
+        if (!res.ok) {
+          markFailed(fileIds);
+          return {};
+        }
+        const data = await res.json();
+        const urls: Record<string, string> = data.urls ?? {};
+        markFailed(fileIds.filter(id => !urls[id]));
+        return urls;
+      },
+      onResolved: urls => {
+        setRefreshedThumbs(prev => ({ ...prev, ...urls }));
+        // 新しいURLで再挑戦させるため、プレースホルダー表示を解除する
+        setThumbState(prev => {
+          const next = { ...prev };
+          Object.keys(urls).forEach(id => delete next[id]);
+          return next;
+        });
+      },
+    });
+  }
+
+  const handleThumbError = useCallback((fileId: string) => {
+    const alreadyRefreshed = refreshAttemptedRef.current.has(fileId);
+    setThumbState(prev => ({ ...prev, [fileId]: nextThumbStatus(alreadyRefreshed) }));
+    if (alreadyRefreshed) return;
+    refreshAttemptedRef.current.add(fileId);
+    thumbQueueRef.current?.enqueue(fileId);
+  }, []);
   const cropDragRef = useRef<{ id:string; type:'portrait'|'square'; startX:number; startY:number; startPosX:number; startPosY:number } | null>(null);
   // ページ座標（scrollY込み）で開始点を保持
   const dragStartRef = useRef<{ pageX: number; pageY: number; imageId: string | null } | null>(null);
@@ -749,6 +803,8 @@ const handleMonthSave = useCallback(async (color: string) => {
     const color = colors[image.id];
     const isSelected = selected.has(image.id);
     const memo = memos[image.id];
+    const thumbUrl = refreshedThumbs[image.id] ?? image.thumbnailUrl;
+    const thumbStatus = thumbState[image.id];
     return (
       <div
         key={image.id}
@@ -764,23 +820,21 @@ const handleMonthSave = useCallback(async (color: string) => {
       >
         <div className="relative flex items-center justify-center bg-gray-100" style={{ height: "160px" }}>
           <img
-            src={image.thumbnailUrl}
+            // 取り直したURLに差し替わったら、同じ<img>を使い回さず再取得させる
+            key={thumbUrl}
+            src={thumbUrl}
             alt={image.name}
-            className="max-w-full max-h-full object-contain pointer-events-none"
+            className={`max-w-full max-h-full object-contain pointer-events-none ${thumbStatus ? "invisible" : ""}`}
             loading="lazy"
             draggable={false}
-            onError={e => {
-              const el = e.currentTarget;
-              el.style.display = "none";
-              const parent = el.parentElement;
-              if (parent && !parent.querySelector(".thumb-error")) {
-                const div = document.createElement("div");
-                div.className = "thumb-error flex flex-col items-center justify-center text-gray-400 text-xs p-2 text-center";
-                div.innerHTML = `<span class="text-2xl mb-1">🔄</span><span>再読み込みで表示</span>`;
-                parent.appendChild(div);
-              }
-            }}
+            onError={() => handleThumbError(image.id)}
           />
+          {thumbStatus && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 text-xs p-2 text-center">
+              <span className="text-2xl mb-1">{thumbStatus === "retrying" ? "⏳" : "🚫"}</span>
+              <span>{thumbStatus === "retrying" ? "読み込み中…" : "表示できません"}</span>
+            </div>
+          )}
           {/* 本目タグバッジ（常時表示） */}
           {folderTags[image.id] && (
             <div className="absolute top-1 left-1 z-10 bg-black/70 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -1429,6 +1483,8 @@ const handleMonthSave = useCallback(async (color: string) => {
               if (!img) return null;
               const portraitPos = cropPositions[id]?.portrait ?? { x: 50, y: 50 };
               const squarePos   = cropPositions[id]?.square   ?? { x: 50, y: 50 };
+              // グリッド側で取り直し済みならその新しいURLを使う（失効したURLの使い回しを防ぐ）
+              const cropThumbUrl = refreshedThumbs[id] ?? img.thumbnailUrl;
               return (
                 <div key={id} className="border border-gray-200 rounded-lg p-4">
                   {/* ファイル名 + ドライブリンク + DL */}
@@ -1471,7 +1527,7 @@ const handleMonthSave = useCallback(async (color: string) => {
                       onClick={() => setZoomedImage(img)}
                     >
                       <img
-                        src={img.thumbnailUrl.replace(/=s\d+$/, '=s800')}
+                        src={cropThumbUrl.replace(/=s\d+$/, '=s800')}
                         alt={img.name}
                         className="w-full object-contain pointer-events-none"
                         draggable={false}
@@ -1494,7 +1550,7 @@ const handleMonthSave = useCallback(async (color: string) => {
                           cropDragRef.current = { id, type: "portrait", startX: e.clientX, startY: e.clientY, startPosX: portraitPos.x, startPosY: portraitPos.y };
                         }}
                       >
-                        <img src={img.thumbnailUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" draggable={false}
+                        <img src={cropThumbUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" draggable={false}
                           style={{ objectPosition: `${portraitPos.x}% ${portraitPos.y}%` }} />
                       </div>
                       <p className="text-xs text-center text-gray-400 mt-1">ドラッグで位置調整</p>
@@ -1510,7 +1566,7 @@ const handleMonthSave = useCallback(async (color: string) => {
                           cropDragRef.current = { id, type: "square", startX: e.clientX, startY: e.clientY, startPosX: squarePos.x, startPosY: squarePos.y };
                         }}
                       >
-                        <img src={img.thumbnailUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" draggable={false}
+                        <img src={cropThumbUrl} alt={img.name} className="w-full h-full object-cover pointer-events-none" draggable={false}
                           style={{ objectPosition: `${squarePos.x}% ${squarePos.y}%` }} />
                       </div>
                       <p className="text-xs text-center text-gray-400 mt-1">ドラッグで位置調整</p>
