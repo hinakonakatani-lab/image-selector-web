@@ -623,6 +623,26 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, []);
 
+  // 本目ごとに別々のZIP（1本目.zip、2本目.zip…）で順番にダウンロードする従来方式
+  const downloadAllFolderTagsZipSplit = useCallback(async () => {
+    const numbers = Array.from(new Set(Object.values(folderTags))).sort((a, b) => a - b);
+    if (numbers.length === 0) return;
+    setDownloadingZip(true);
+    for (const n of numbers) {
+      const files = allImagesWithPath
+        .filter(({ image }) => folderTags[image.id] === n)
+        .map(({ image }) => ({
+          fileId: image.id,
+          name: renameMap[image.id] || undefined,
+          folderLabel: `${n}本目`,
+        }));
+      await downloadZipBlob(files, `${n}本目.zip`);
+      // ブラウザが立て続けの複数ダウンロードをブロックしないよう少し間隔を空ける
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+    setDownloadingZip(false);
+  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
+
   // 社内用ダウンロード: 全本目を「使用画像/N本目/…」の階層で1つのZIPにまとめる。
   // サーバー側でZIPを作ると実行時間・メモリの上限に当たるため、画像は1枚ずつ
   // /api/drive/download から取得し、ZIPはブラウザ内で組み立てる（STOREで無圧縮）。
@@ -1071,6 +1091,14 @@ const handleMonthSave = useCallback(async (color: string) => {
               {downloadingZip
                 ? `⏳ DL中...${zipProgress ? ` ${zipProgress.done}/${zipProgress.total}` : ""}`
                 : "📦 社内用ダウンロード(使用画像というフォルダ名で保存)"}
+            </button>
+            <button
+              onClick={downloadAllFolderTagsZipSplit}
+              disabled={downloadingZip}
+              className="text-xs px-3 py-1 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
+              title="本目ごとに分けて順番にダウンロードします（1本目.zip、2本目.zipのように複数ファイルになります）"
+            >
+              {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード（本目ごと）"}
             </button>
             <button
               onClick={() => setConfirmDialog({
