@@ -74,6 +74,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const [folderTagCount, setFolderTagCount] = useState<number>(initialFolderTagCount);
   const [renameMap, setRenameMap] = useState<Record<string, string>>(initialRenameMap);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [zipProgress, setZipProgress] = useState<{ done: number; total: number } | null>(null);
   const showFolderTagUI = useFolderTagVisibility();
   const folderTagUIEnabled = showFolderTagUI && canUseFolderTag;
   const [editingFolderTagCount, setEditingFolderTagCount] = useState(false);
@@ -622,24 +623,72 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
   }, []);
 
+  // 社内用ダウンロード: 全本目を「使用画像/N本目/…」の階層で1つのZIPにまとめる。
+  // サーバー側でZIPを作ると実行時間・メモリの上限に当たるため、画像は1枚ずつ
+  // /api/drive/download から取得し、ZIPはブラウザ内で組み立てる（STOREで無圧縮）。
   const downloadAllFolderTagsZip = useCallback(async () => {
-    const numbers = Array.from(new Set(Object.values(folderTags))).sort((a, b) => a - b);
-    if (numbers.length === 0) return;
+    const entries = allImagesWithPath
+      .filter(({ image }) => folderTags[image.id] !== undefined)
+      .map(({ image }) => ({ image, n: folderTags[image.id] }));
+    if (entries.length === 0) return;
     setDownloadingZip(true);
-    for (const n of numbers) {
-      const files = allImagesWithPath
-        .filter(({ image }) => folderTags[image.id] === n)
-        .map(({ image }) => ({
-          fileId: image.id,
-          name: renameMap[image.id] || undefined,
-          folderLabel: `${n}本目`,
-        }));
-      await downloadZipBlob(files, `${n}本目.zip`);
-      // ブラウザが立て続けの複数ダウンロードをブロックしないよう少し間隔を空ける
-      await new Promise(resolve => setTimeout(resolve, 400));
+    setZipProgress({ done: 0, total: entries.length });
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const usedPaths = new Set<string>();
+      let failedCount = 0;
+      let done = 0;
+      let index = 0;
+      const worker = async () => {
+        while (index < entries.length) {
+          const { image, n } = entries[index++];
+          try {
+            const res = await fetch("/api/drive/download", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileId: image.id }),
+            });
+            if (!res.ok) throw new Error("失敗");
+            const blob = await res.blob();
+            const dot = image.name.lastIndexOf(".");
+            const ext = dot >= 0 ? image.name.slice(dot) : "";
+            const baseName = renameMap[image.id] ? `${renameMap[image.id]}${ext}` : image.name;
+            // 同名は " (2)" などを付けて衝突を避ける（awaitを挟まないので並列でも安全）
+            let path = `使用画像/${n}本目/${baseName}`;
+            if (usedPaths.has(path)) {
+              const d = baseName.lastIndexOf(".");
+              const base = d >= 0 ? baseName.slice(0, d) : baseName;
+              const e = d >= 0 ? baseName.slice(d) : "";
+              let c = 2;
+              while (usedPaths.has(`使用画像/${n}本目/${base} (${c})${e}`)) c++;
+              path = `使用画像/${n}本目/${base} (${c})${e}`;
+            }
+            usedPaths.add(path);
+            zip.file(path, blob, { compression: "STORE" });
+          } catch {
+            failedCount++;
+          }
+          done++;
+          setZipProgress({ done, total: entries.length });
+        }
+      };
+      await Promise.all(Array.from({ length: 4 }, worker));
+      if (failedCount === entries.length) throw new Error("全て失敗");
+      const out = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(out);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "使用画像.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+      if (failedCount > 0) alert(`${failedCount}件のダウンロードに失敗しました`);
+    } catch {
+      alert("ダウンロードに失敗しました");
     }
+    setZipProgress(null);
     setDownloadingZip(false);
-  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
+  }, [allImagesWithPath, folderTags, renameMap]);
 
 
 const handleMonthSave = useCallback(async (color: string) => {
@@ -1017,9 +1066,11 @@ const handleMonthSave = useCallback(async (color: string) => {
               onClick={downloadAllFolderTagsZip}
               disabled={downloadingZip}
               className="text-xs px-3 py-1 self-center rounded border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
-              title="本目ごとに分けて順番にダウンロードします（1本目.zip、2本目.zipのように複数ファイルになります）"
+              title="全ての本目を「使用画像」フォルダの中にまとめたZIP（使用画像.zip）をダウンロードします。展開すると 使用画像/1本目/… の階層になります"
             >
-              {downloadingZip ? "⏳ DL中..." : "📦 全てダウンロード（本目ごと）"}
+              {downloadingZip
+                ? `⏳ DL中...${zipProgress ? ` ${zipProgress.done}/${zipProgress.total}` : ""}`
+                : "📦 社内用ダウンロード(使用画像というフォルダ名で保存)"}
             </button>
             <button
               onClick={() => setConfirmDialog({
