@@ -15,7 +15,7 @@ export const ADMIN_EMAILS: string[] = [
 ];
 
 export const GENERAL_EMAILS: string[] = [
-  "atsuyoshi_suzuki@shintairiku.jp",
+  "yuka.imamura23@gmail.com",
   "lafleurcolore1107@gmail.com",
   "atsuyoshi_suzuki@shintairiku.jp",
   "chinatsu.shinzato0817@gmail.com",
