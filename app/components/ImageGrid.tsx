@@ -1175,6 +1175,16 @@ const handleMonthSave = useCallback(async (color: string) => {
             <div key={folder.id} className="mb-8">
               <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                 📁 {folder.path}
+                <a
+                  href={`https://drive.google.com/drive/folders/${folder.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="ml-2 text-xs font-normal text-blue-600 hover:underline whitespace-nowrap"
+                  title="このフォルダをGoogleドライブで開く"
+                >
+                  📂 Driveで開く ↗
+                </a>
                 <button
                   onClick={() => setSelected(prev => {
                     const next = new Set(prev);
@@ -1254,6 +1264,16 @@ const handleMonthSave = useCallback(async (color: string) => {
                     <div key={folder.id} className="mb-8">
                       <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700">
                         📁 {folder.path}
+                        <a
+                          href={`https://drive.google.com/drive/folders/${folder.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="ml-2 text-xs font-normal text-blue-600 hover:underline whitespace-nowrap"
+                          title="このフォルダをGoogleドライブで開く"
+                        >
+                          📂 Driveで開く ↗
+                        </a>
                         <span className="ml-2 font-normal text-gray-500">（{folder.images.length}枚）</span>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-1">
@@ -1358,6 +1378,16 @@ const handleMonthSave = useCallback(async (color: string) => {
                   <div key={folder.id} className="mb-8">
                     <div className="bg-gray-200 font-bold px-3 py-2 rounded mb-2 text-sm text-gray-700 flex items-center">
                       📁 {folder.path}
+                      <a
+                        href={`https://drive.google.com/drive/folders/${folder.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="ml-2 text-xs font-normal text-blue-600 hover:underline whitespace-nowrap"
+                        title="このフォルダをGoogleドライブで開く"
+                      >
+                        📂 Driveで開く ↗
+                      </a>
                       <button
                         onClick={() => setSelected(prev => {
                           const next = new Set(prev);
