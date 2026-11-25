@@ -252,6 +252,7 @@ export default function TagSearchPanel({ folders, folderId, ...gridProps }: Prop
       <ImageGrid
         key={folderId}
         folders={filteredFolders}
+        tagFolders={folders}
         folderId={folderId}
         {...gridProps}
       />

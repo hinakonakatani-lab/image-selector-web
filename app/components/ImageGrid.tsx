@@ -54,6 +54,8 @@ function RenameInput({
 
 type Props = {
   folders: DriveFolder[];
+  // 本目タブの件数・一覧・ダウンロード用の全画像。絞り込み表示中（タグ検索）でも本目は全体で数えたいときに渡す。省略時は folders。
+  tagFolders?: DriveFolder[];
   folderId: string;
   initialColors: Record<string, string>;
   initialMonths: Record<string, string>;
@@ -67,7 +69,7 @@ type Props = {
   canUseFolderTag?: boolean;
 };
 
-export default function ImageGrid({ folders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName, canUseColor = true, canEditMemo = true, canUseFolderTag = true }: Props) {
+export default function ImageGrid({ folders, tagFolders, folderId, initialColors, initialMonths, initialMemos, initialFolderTagCount, initialFolderTags, initialRenameMap, userName, canUseColor = true, canEditMemo = true, canUseFolderTag = true }: Props) {
   const [colors, setColors] = useState<Record<string, string>>(initialColors);
   const [months, setMonths] = useState<Record<string, string>>(initialMonths);
   const [folderTags, setFolderTags] = useState<Record<string, number>>(initialFolderTags);
@@ -590,6 +592,10 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
   const allImagesWithPath = folders.flatMap(folder =>
     folder.images.map(image => ({ image, path: folder.path }))
   );
+  const tagSourceFolders = tagFolders ?? folders;
+  const tagImagesWithPath = tagSourceFolders.flatMap(folder =>
+    folder.images.map(image => ({ image, path: folder.path }))
+  );
 
   // downloadingZipの管理は呼び出し側（1本目だけ/全本目まとめて）に任せる。
   // 1回のリクエストが大きすぎるとサーバー側でメモリ不足になるため、
@@ -629,7 +635,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     if (numbers.length === 0) return;
     setDownloadingZip(true);
     for (const n of numbers) {
-      const files = allImagesWithPath
+      const files = tagImagesWithPath
         .filter(({ image }) => folderTags[image.id] === n)
         .map(({ image }) => ({
           fileId: image.id,
@@ -641,13 +647,13 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
       await new Promise(resolve => setTimeout(resolve, 400));
     }
     setDownloadingZip(false);
-  }, [allImagesWithPath, folderTags, renameMap, downloadZipBlob]);
+  }, [tagImagesWithPath, folderTags, renameMap, downloadZipBlob]);
 
   // 社内用ダウンロード: 全本目を「使用画像/N本目/…」の階層で1つのZIPにまとめる。
   // サーバー側でZIPを作ると実行時間・メモリの上限に当たるため、画像は1枚ずつ
   // /api/drive/download から取得し、ZIPはブラウザ内で組み立てる（STOREで無圧縮）。
   const downloadAllFolderTagsZip = useCallback(async () => {
-    const entries = allImagesWithPath
+    const entries = tagImagesWithPath
       .filter(({ image }) => folderTags[image.id] !== undefined)
       .map(({ image }) => ({ image, n: folderTags[image.id] }));
     if (entries.length === 0) return;
@@ -708,7 +714,7 @@ export default function ImageGrid({ folders, folderId, initialColors, initialMon
     }
     setZipProgress(null);
     setDownloadingZip(false);
-  }, [allImagesWithPath, folderTags, renameMap]);
+  }, [tagImagesWithPath, folderTags, renameMap]);
 
 
 const handleMonthSave = useCallback(async (color: string) => {
@@ -800,14 +806,14 @@ const handleMonthSave = useCallback(async (color: string) => {
   const folderTagNumbers = Array.from({ length: folderTagCount }, (_, i) => i + 1);
 
   const folderTagCountsByNum = folderTagNumbers.reduce((acc, n) => {
-    acc[n] = allImagesWithPath.filter(({ image }) => folderTags[image.id] === n).length;
+    acc[n] = tagImagesWithPath.filter(({ image }) => folderTags[image.id] === n).length;
     return acc;
   }, {} as Record<number, number>);
 
   const taggedTotal = Object.keys(folderTags).length;
 
   const folderTagFolders = activeFolderTagNum !== null
-    ? folders
+    ? tagSourceFolders
       .map(folder => ({
         ...folder,
         images: folder.images.filter(img => folderTags[img.id] === activeFolderTagNum),
